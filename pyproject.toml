@@ -1,0 +1,76 @@
+[project]
+name = "tablemutant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+dependencies = [
+    "aiohttp",
+    "dspy",
+    "huggingface_hub",
+    "numpy",
+    "polars",
+    "pypdf",
+    "scikit-learn",
+    "scipy",
+    "sentence-transformers",
+    "toga",
+    "tqdm",
+]
+
+[tool.briefcase]
+project_name = "TableMutant"
+bundle = "org.tablemutant"
+version = "0.1.0"
+url = "https://github.com/your-org/tablemutant"
+author = "TableMutant"
+author_email = "devnull@example.com"
+formal_name = "TableMutant"
+description = "Generate new columns in datasets using LLMs"
+
+[tool.briefcase.app.tablemutant]
+formal_name = "TableMutant"
+bundle = "org.tablemutant"
+version = "0.1.0"
+description = "Generate new columns in datasets using LLMs"
+sources = ["tablemutant"]
+# Keep runtime framework minimal; app deps are in [project.dependencies]
+requires = ["toga>=0.4.7"]
+# Entry point: module:function for the app startup
+entry_point = "tablemutant.__main__:main"
+
+# Generic icon (fallback). Per-platform variants override this.
+icon = "resources/icons/tablemutant"
+
+# macOS specific settings
+[tool.briefcase.app.tablemutant.macOS]
+requires = ["toga-cocoa>=0.4.7"]
+icon = "resources/icons/macos"
+min_os_version = "12.0"
+universal_build = false
+
+# Linux settings
+[tool.briefcase.app.tablemutant.linux]
+requires = ["toga-gtk>=0.4.7"]
+icon = "resources/icons/linux"
+
+# Windows settings
+[tool.briefcase.app.tablemutant.windows]
+requires = ["toga-winforms>=0.4.7"]
+icon = "resources/icons/windows"
+
+# iOS (optional future target)
+[tool.briefcase.app.tablemutant.iOS]
+requires = ["toga-iOS>=0.4.7"]
+icon = "resources/icons/ios"
+
+# Android (optional future target)
+[tool.briefcase.app.tablemutant.android]
+requires = ["toga-android>=0.4.7"]
+icon = "resources/icons/android"
+
+[dependency-groups]
+dev = [
+    "briefcase>=0.3.24",
+]

@@ -1,0 +1,9 @@
+{
+    "model": "/Users/lila/Library/Application Support/TableMutant/models/unsloth_medgemma-27b-text-it-GGUF/medgemma-27b-text-it-Q3_K_S.gguf",
+    "models_directory": "/Users/lila/Library/Application Support/TableMutant/models",
+    "server_host": "http://localhost:8000",
+    "auth_token": "",
+    "llamafile_port": 8000,
+    "temperature": 0.7,
+    "max_tokens": 2048
+}
