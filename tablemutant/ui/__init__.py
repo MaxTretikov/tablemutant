@@ -8,6 +8,7 @@ import os
 import sys
 import threading
 import time
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
@@ -20,6 +21,9 @@ import polars as pl
 
 from tablemutant.core import TableMutant
 from tablemutant.core.settings_manager import SettingsManager
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.ui')
 
 from tablemutant.ui.windows import (
     InitializationWindow,
@@ -44,6 +48,7 @@ class TableMutantGUI(toga.App):
         # Initialize settings manager first
         self.settings_manager = SettingsManager()
         
+        logger.debug("TableMutantGUI.__init__")
         self.tm = TableMutant(settings_manager=self.settings_manager)
         self.current_df = None
         self.original_df = None  # Store original DataFrame
@@ -69,6 +74,7 @@ class TableMutantGUI(toga.App):
         
     def startup(self):
         """Construct and show the Toga application."""
+        logger.debug("TableMutantGUI.startup")
         self.main_window = toga.MainWindow(title=self.formal_name)
         
         # Create app menu with settings option
@@ -96,6 +102,7 @@ class TableMutantGUI(toga.App):
         
     def show_initialization_window(self):
         """Show initialization window with loading bar."""
+        logger.debug("TableMutantGUI.show_initialization_window")
         self.init_window = InitializationWindow(self)
         self.main_window.content = self.init_window.create_content()
         self.main_window.show()
@@ -105,6 +112,7 @@ class TableMutantGUI(toga.App):
     
     def show_file_selection_window(self):
         """Show window for selecting and previewing table file."""
+        logger.debug("TableMutantGUI.show_file_selection_window")
         self.file_window = FileSelectionWindow(self)
         self.main_window.content = self.file_window.create_content()
     

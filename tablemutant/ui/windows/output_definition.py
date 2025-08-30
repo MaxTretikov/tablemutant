@@ -21,19 +21,19 @@ class OutputDefinitionWindow:
         
     def create_content(self):
         """Create and return the output definition window content."""
-        self.output_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        self.output_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
         
         # Title
         title = toga.Label(
             "Define Output Columns",
-            style=Pack(padding=(0, 0, 20, 0), font_size=16, font_weight='bold')
+            style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
         
         # Scrollable container for column definitions
         self.definitions_container = toga.ScrollContainer(
             style=Pack(flex=1)
         )
-        self.definitions_box = toga.Box(style=Pack(direction=COLUMN, padding=5))
+        self.definitions_box = toga.Box(style=Pack(direction=COLUMN, margin=5))
         
         # Load existing definitions or add initial one if none exist
         self.load_existing_definitions()
@@ -42,11 +42,11 @@ class OutputDefinitionWindow:
         add_button = toga.Button(
             "Add Another Column",
             on_press=self.add_column_definition_handler,
-            style=Pack(padding=(10, 0, 10, 0))
+            style=Pack(margin=(10, 0, 10, 0))
         )
         
         # Preview rows section
-        preview_section = toga.Box(style=Pack(direction=COLUMN, padding=(10, 0, 20, 0)))
+        preview_section = toga.Box(style=Pack(direction=COLUMN, margin=(10, 0, 20, 0)))
         
         # Calculate actual available rows based on non-empty data
         max_preview_rows = self.get_max_preview_rows()
@@ -57,7 +57,7 @@ class OutputDefinitionWindow:
         
         preview_label = toga.Label(
             f"Preview Rows: {self.app.preview_rows} (max: {max_preview_rows})",
-            style=Pack(padding=(0, 0, 5, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 5, 0), font_weight='bold')
         )
         
         self.preview_rows_slider = toga.Slider(
@@ -75,16 +75,16 @@ class OutputDefinitionWindow:
         self.preview_rows_label = preview_label
         
         # Navigation buttons
-        nav_section = toga.Box(style=Pack(direction=ROW, padding=(20, 0, 0, 0)))
+        nav_section = toga.Box(style=Pack(direction=ROW, margin=(20, 0, 0, 0)))
         back_button = toga.Button(
             "Back",
             on_press=self.back_to_source_selection,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         preview_button = toga.Button(
             "Preview Generation",
             on_press=self.preview_generation,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         nav_section.add(back_button)
         nav_section.add(toga.Box(style=Pack(flex=1)))
@@ -187,12 +187,12 @@ class OutputDefinitionWindow:
     
     def add_column_definition(self):
         """Add a new column definition widget."""
-        definition_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        definition_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
         
         # Column header inputs
         header_label = toga.Label(
             f"Column Headers ({self.app.header_rows} row{'s' if self.app.header_rows > 1 else ''}):",
-            style=Pack(padding=(0, 0, 5, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 5, 0), font_weight='bold')
         )
         definition_box.add(header_label)
         
@@ -200,7 +200,7 @@ class OutputDefinitionWindow:
         for i in range(self.app.header_rows):
             header_input = toga.TextInput(
                 placeholder=f"Header row {i + 1}",
-                style=Pack(width=300, padding=(0, 0, 5, 0))
+                style=Pack(width=300, margin=(0, 0, 5, 0))
             )
             header_inputs.append(header_input)
             definition_box.add(header_input)
@@ -208,29 +208,29 @@ class OutputDefinitionWindow:
         # Instructions
         inst_label = toga.Label(
             "Generation Instructions:",
-            style=Pack(padding=(10, 0, 5, 0), font_weight='bold')
+            style=Pack(margin=(10, 0, 5, 0), font_weight='bold')
         )
         instructions = toga.MultilineTextInput(
             placeholder="Describe how to generate this column based on the source columns...",
-            style=Pack(width=500, height=100, padding=(0, 0, 10, 0))
+            style=Pack(width=500, height=100, margin=(0, 0, 10, 0))
         )
         
         definition_box.add(inst_label)
         definition_box.add(instructions)
         
         # Examples section (initially not added to parent)
-        examples_section = toga.Box(style=Pack(direction=COLUMN, padding=(10, 0, 10, 0)))
+        examples_section = toga.Box(style=Pack(direction=COLUMN, margin=(10, 0, 10, 0)))
         examples_label = toga.Label(
             "Examples:",
-            style=Pack(padding=(0, 0, 5, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 5, 0), font_weight='bold')
         )
-        examples_list_box = toga.Box(style=Pack(direction=COLUMN, padding=5, width=500))
+        examples_list_box = toga.Box(style=Pack(direction=COLUMN, margin=5, width=500))
         
         examples_section.add(examples_label)
         examples_section.add(examples_list_box)
         
         # Buttons section
-        buttons_box = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 10, 0)))
+        buttons_box = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 10, 0)))
         
         # Capture the current index before adding the definition
         current_index = len(self.app.column_definitions)
@@ -239,7 +239,7 @@ class OutputDefinitionWindow:
         example_button = toga.Button(
             "Add example",
             on_press=lambda w, idx=current_index: asyncio.create_task(self.add_example_for_next_row(idx)),
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         buttons_box.add(example_button)
         
@@ -248,7 +248,7 @@ class OutputDefinitionWindow:
             remove_button = toga.Button(
                 "Remove",
                 on_press=lambda w: self.remove_column_definition(definition_box),
-                style=Pack(padding=5)
+                style=Pack(margin=5)
             )
             buttons_box.add(remove_button)
         
@@ -331,10 +331,10 @@ class OutputDefinitionWindow:
     def add_example_item(self, definition_index, row_number, example_text, examples_list_box):
         """Add an example item with edit and remove buttons."""
         # Create container for this item
-        item_box = toga.Box(style=Pack(direction=ROW, padding=(5, 0, 5, 0)))
+        item_box = toga.Box(style=Pack(direction=ROW, margin=(5, 0, 5, 0)))
         
         # Content box for example text
-        content_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=(0, 10, 0, 0)))
+        content_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=(0, 10, 0, 0)))
         
         # Extract row info from example for display
         example_display = f"Row {row_number} example"
@@ -365,7 +365,7 @@ class OutputDefinitionWindow:
         content_box.add(subtitle_label)
         
         # Buttons box for edit and remove
-        buttons_box = toga.Box(style=Pack(direction=ROW, padding=(0, 5, 0, 0)))
+        buttons_box = toga.Box(style=Pack(direction=ROW, margin=(0, 5, 0, 0)))
         
         # Edit button
         def create_edit_handler(def_idx, row_num):
@@ -376,7 +376,7 @@ class OutputDefinitionWindow:
         edit_button = toga.Button(
             "Edit",
             on_press=create_edit_handler(definition_index, row_number),
-            style=Pack(width=50, height=30, padding=(0, 2, 0, 0), background_color='#007acc', color='white')
+            style=Pack(width=50, height=30, margin=(0, 2, 0, 0), background_color='#007acc', color='white')
         )
         
         # Remove button
@@ -388,7 +388,7 @@ class OutputDefinitionWindow:
         remove_button = toga.Button(
             "−",  # Unicode minus symbol
             on_press=create_remove_handler(definition_index, row_number),
-            style=Pack(width=30, height=30, padding=(0, 0, 0, 0), background_color='#ff4444', color='white')
+            style=Pack(width=30, height=30, margin=(0, 0, 0, 0), background_color='#ff4444', color='white')
         )
         
         buttons_box.add(edit_button)

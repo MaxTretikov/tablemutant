@@ -3,11 +3,16 @@
 FileSelectionWindow - Handles file selection and table preview
 """
 
+import asyncio
 import os
+import logging
 
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.ui.windows.file_selection')
 
 
 class FileSelectionWindow:
@@ -29,24 +34,25 @@ class FileSelectionWindow:
         
     def create_content(self):
         """Create and return the file selection window content."""
-        self.file_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        logger.debug("FileSelectionWindow.create_content")
+        self.file_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
         
         # Title
         title = toga.Label(
             "Load Table File",
-            style=Pack(padding=(0, 0, 20, 0), font_size=16, font_weight='bold')
+            style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
         
         # File selection section
-        file_section = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 20, 0)))
+        file_section = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 20, 0)))
         self.file_label = toga.Label(
             "No file selected",
-            style=Pack(padding=(0, 10, 0, 0), width=400)
+            style=Pack(margin=(0, 10, 0, 0), width=400)
         )
         load_button = toga.Button(
             "Browse...",
             on_press=self.load_table_file,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         file_section.add(load_button)
         file_section.add(self.file_label)
@@ -54,14 +60,14 @@ class FileSelectionWindow:
         # Preview section
         self.preview_label = toga.Label(
             "Table Preview (First 5 Rows):",
-            style=Pack(padding=(10, 0, 5, 0), font_weight='bold')
+            style=Pack(margin=(10, 0, 5, 0), font_weight='bold')
         )
         
         # Create a ScrollContainer for horizontal scrolling
         self.preview_scroll_container = toga.ScrollContainer(
             style=Pack(
                 flex=1,
-                padding=5,
+                margin=5,
                 height=250  # Fixed height for the preview area
             ),
             horizontal=True,  # Enable horizontal scrolling
@@ -92,7 +98,7 @@ class FileSelectionWindow:
                         native_scroll.set_policy(Gtk.PolicyType.ALWAYS, Gtk.PolicyType.AUTOMATIC)
         except Exception as e:
             # If platform-specific styling fails, continue with default behavior
-            print(f"Could not apply platform-specific scrollbar styling: {e}")
+            logger.debug("Could not apply platform-specific scrollbar styling: %s", e)
         
         # Container for the table preview (inside the scroll container)
         self.preview_container = toga.Box(style=Pack())
@@ -100,10 +106,10 @@ class FileSelectionWindow:
         self.preview_table = None
         
         # Header detection section (initially hidden)
-        self.header_section = toga.Box(style=Pack(direction=ROW, padding=(20, 0, 10, 0)))
+        self.header_section = toga.Box(style=Pack(direction=ROW, margin=(20, 0, 10, 0)))
         header_label = toga.Label(
             "Number of header rows:",
-            style=Pack(padding=(0, 10, 0, 0))
+            style=Pack(margin=(0, 10, 0, 0))
         )
         self.header_selector = toga.NumberInput(
             min=1,
@@ -114,7 +120,7 @@ class FileSelectionWindow:
         )
         self.confidence_label = toga.Label(
             "",
-            style=Pack(padding=(0, 10, 0, 0))
+            style=Pack(margin=(0, 10, 0, 0))
         )
         
         self.header_section.add(header_label)
@@ -122,19 +128,19 @@ class FileSelectionWindow:
         self.header_section.add(self.confidence_label)
         
         # Model status section
-        self.model_section = toga.Box(style=Pack(direction=ROW, padding=(10, 0, 20, 0)))
+        self.model_section = toga.Box(style=Pack(direction=ROW, margin=(10, 0, 20, 0)))
         model_label = toga.Label(
             "Model:",
-            style=Pack(padding=(0, 10, 0, 0))
+            style=Pack(margin=(0, 10, 0, 0))
         )
         self.model_status = toga.Label(
             self._truncate_model_name(self.app.settings_manager.get('model', 'Not configured')),
-            style=Pack(flex=1, padding=(0, 10, 0, 0))
+            style=Pack(flex=1, margin=(0, 10, 0, 0))
         )
         settings_button = toga.Button(
             "Settings...",
             on_press=self.open_settings,
-            style=Pack(padding=(0, 0, 0, 10))
+            style=Pack(margin=(0, 0, 0, 10))
         )
         self.model_section.add(model_label)
         self.model_section.add(self.model_status)
@@ -144,7 +150,7 @@ class FileSelectionWindow:
         self.confirm_button = toga.Button(
             "Next: Select Sources",
             on_press=self.confirm_file_selection,
-            style=Pack(padding=(20, 0, 0, 0))
+            style=Pack(margin=(20, 0, 0, 0))
         )
         
         # Add all components
@@ -156,34 +162,49 @@ class FileSelectionWindow:
     
     async def load_table_file(self, widget):
         """Load and preview table file."""
+        logger.debug("FileSelectionWindow.load_table_file")
         try:
             file_dialog = toga.OpenFileDialog(
                 title="Select Table File",
                 file_types=["csv", "parquet", "json"]
             )
             file_path = await self.app.main_window.dialog(file_dialog)
+            logger.debug("FileSelectionWindow.load_table_file file_path: %s", file_path)
             
             if file_path:
                 self.app.table_path = str(file_path)
                 self.file_label.text = os.path.basename(self.app.table_path)
+                logger.debug("FileSelectionWindow.load_table_file table_path: %s", self.app.table_path)
                 
                 # Load table and store original
+                logger.debug("FileSelectionWindow.load_table_file loading table")
                 self.app.original_df = self.app.tm.table_processor.load_table(self.app.table_path)
+                logger.debug("FileSelectionWindow.load_table_file loaded table, shape: %s",
+                           self.app.original_df.shape if self.app.original_df is not None else 'None')
                 
                 # Detect headers
+                logger.debug("FileSelectionWindow.load_table_file detecting headers")
                 self.app.detected_headers, self.app.confidence = self.app.detect_header_rows(self.app.original_df)
+                logger.debug("FileSelectionWindow.load_table_file detected headers: %s, confidence: %s",
+                           self.app.detected_headers, self.app.confidence)
                 self.header_selector.value = self.app.detected_headers
                 self.app.header_rows = self.app.detected_headers
                 self.confidence_label.text = f"(Confidence: {self.app.confidence:.1%})"
                 
                 # Create working DataFrame
+                logger.debug("FileSelectionWindow.load_table_file creating working DataFrame")
                 self.app.create_working_dataframe()
+                logger.debug("FileSelectionWindow.load_table_file created working DataFrame, shape: %s",
+                           self.app.current_df.shape if self.app.current_df is not None else 'None')
                 
                 # Update preview
+                logger.debug("FileSelectionWindow.load_table_file updating preview")
                 self.update_preview()
+                logger.debug("FileSelectionWindow.load_table_file updated preview")
                 
                 # Show the preview and additional controls now that a file is loaded
                 if self.preview_label not in self.file_box.children:
+                    logger.debug("FileSelectionWindow.load_table_file adding preview components")
                     self.file_box.add(self.preview_label)
                     self.file_box.add(self.preview_scroll_container)  # Add scroll container instead of preview_container
                     self.file_box.add(self.header_section)
@@ -191,11 +212,12 @@ class FileSelectionWindow:
                     self.file_box.add(self.confirm_button)
                     
                     # Try to force scrollbar visibility after adding to the UI
-                    self.app.main_window.app.add_background_task(
-                        lambda app: self.force_scrollbar_visibility()
-                    )
+                    asyncio.create_task(self._force_scrollbar_visibility_async())
                 
         except Exception as e:
+            logger.debug("FileSelectionWindow.load_table_file error: %s", e)
+            import traceback
+            traceback.print_exc()
             await self.app.main_window.dialog(
                 toga.ErrorDialog(
                     title="Error",
@@ -212,27 +234,19 @@ class FileSelectionWindow:
         self.app.create_working_dataframe()
         
         # DEBUG: Print current DataFrame info
-        print("\n" + "="*60)
-        print(f"DEBUG: Header selector changed to {self.app.header_rows} rows")
-        if self.app.current_df is not None:
-            print(f"Current DataFrame shape: {self.app.current_df.shape}")
-            print(f"Column names ({len(self.app.current_df.columns)}):")
-            for i, col in enumerate(self.app.current_df.columns):
-                print(f"  [{i}] {col}")
-            
-            # Show first few rows of data
-            if len(self.app.current_df) > 0:
-                print(f"\nFirst 3 rows of data:")
-                try:
-                    preview_df = self.app.current_df.head(3)
-                    print(preview_df)
-                except Exception as e:
-                    print(f"Error displaying preview: {e}")
-            else:
-                print("No data rows available")
-        else:
-            print("Current DataFrame is None")
-        print("="*60)
+        logger.debug(
+            "\n%s\nHeader selector changed to %s rows\n"
+            "Current DataFrame shape: %s\n"
+            "Column names (%s): %s\n"
+            "First 3 rows preview: %s\n%s",
+            "="*60,
+            self.app.header_rows,
+            self.app.current_df.shape if self.app.current_df is not None else 'None',
+            len(self.app.current_df.columns) if self.app.current_df is not None else 0,
+            [f"[{i}] {col}" for i, col in enumerate(self.app.current_df.columns)] if self.app.current_df is not None else [],
+            (self.app.current_df.head(3) if len(self.app.current_df) > 0 else "No data rows available") if self.app.current_df is not None else "Current DataFrame is None",
+            "="*60
+        )
         
         self.update_preview()
     
@@ -288,6 +302,12 @@ class FileSelectionWindow:
         # Add to container
         self.preview_container.add(self.preview_table)
     
+    async def _force_scrollbar_visibility_async(self):
+        """Async wrapper for forcing scrollbar visibility after widget creation."""
+        # Add a small delay to ensure the UI is fully rendered
+        await asyncio.sleep(0.1)
+        self.force_scrollbar_visibility()
+    
     def force_scrollbar_visibility(self):
         """Attempt to force scrollbar visibility after widget creation."""
         try:
@@ -325,7 +345,7 @@ class FileSelectionWindow:
                     except ImportError:
                         pass
         except Exception as e:
-            print(f"Could not force scrollbar visibility: {e}")
+            logger.debug("Could not force scrollbar visibility: %s", e)
     
     async def open_settings(self, widget):
         """Open settings dialog."""
@@ -341,7 +361,9 @@ class FileSelectionWindow:
     
     async def confirm_file_selection(self, widget):
         """Confirm file selection and move to column selection."""
+        logger.debug("FileSelectionWindow.confirm_file_selection")
         if self.app.current_df is None or self.app.current_df.is_empty():
+            logger.debug("FileSelectionWindow.confirm_file_selection no data")
             await self.app.main_window.dialog(
                 toga.InfoDialog(
                     title="Error",
@@ -352,14 +374,17 @@ class FileSelectionWindow:
         
         # Get model from settings
         model_path = self.app.settings_manager.get('model')
+        logger.debug("FileSelectionWindow.confirm_file_selection model_path: %s", model_path)
         if not model_path:
+            logger.debug("FileSelectionWindow.confirm_file_selection no model configured")
             await self.app.main_window.dialog(
                 toga.InfoDialog(
-                    title="Error", 
+                    title="Error",
                     message="Please configure a model in Settings first."
                 )
             )
             return
         
         self.app.model_path = model_path
+        logger.debug("FileSelectionWindow.confirm_file_selection showing source selection window")
         self.app.show_source_selection_window()

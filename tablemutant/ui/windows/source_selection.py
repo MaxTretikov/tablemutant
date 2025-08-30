@@ -21,23 +21,23 @@ class SourceSelectionWindow:
         
     def create_content(self):
         """Create and return the source selection window content."""
-        self.source_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        self.source_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
         
         # Title
         title = toga.Label(
             "Select Data Sources",
-            style=Pack(padding=(0, 0, 20, 0), font_size=16, font_weight='bold')
+            style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
         
         # Table columns section
-        columns_section = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 15, 0)))
+        columns_section = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 15, 0)))
         columns_label = toga.Label(
             "Table Columns:",
-            style=Pack(padding=(0, 0, 10, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 10, 0), font_weight='bold')
         )
         
         # Column dropdown
-        column_dropdown_section = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 10, 0)))
+        column_dropdown_section = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 10, 0)))
         
         # Prepare column options - now they're already in the DataFrame columns
         self.column_options = {}
@@ -53,7 +53,7 @@ class SourceSelectionWindow:
         add_column_button = toga.Button(
             "Add Column",
             on_press=self.add_source_column,
-            style=Pack(padding=(0, 10, 0, 0))
+            style=Pack(margin=(0, 10, 0, 0))
         )
         
         column_dropdown_section.add(self.column_dropdown)
@@ -63,16 +63,16 @@ class SourceSelectionWindow:
         columns_section.add(column_dropdown_section)
         
         # Document upload section
-        documents_section = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 15, 0)))
+        documents_section = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 15, 0)))
         documents_label = toga.Label(
             "RAG Documents:",
-            style=Pack(padding=(0, 0, 10, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 10, 0), font_weight='bold')
         )
         
         add_document_button = toga.Button(
             "Add Document",
             on_press=self.add_rag_document,
-            style=Pack(padding=(0, 0, 10, 0))
+            style=Pack(margin=(0, 0, 10, 0))
         )
         
         documents_section.add(documents_label)
@@ -81,32 +81,32 @@ class SourceSelectionWindow:
         # Selected sources list
         list_label = toga.Label(
             "Selected Sources:",
-            style=Pack(padding=(10, 0, 5, 0), font_weight='bold')
+            style=Pack(margin=(10, 0, 5, 0), font_weight='bold')
         )
         
         # Scrollable container for custom list items
         self.list_scroll_container = toga.ScrollContainer(
-            style=Pack(flex=1, padding=5)
+            style=Pack(flex=1, margin=5)
         )
         
         # Container for list items (will be populated dynamically)
-        self.sources_list_box = toga.Box(style=Pack(direction=COLUMN, padding=5))
+        self.sources_list_box = toga.Box(style=Pack(direction=COLUMN, margin=5))
         self.list_scroll_container.content = self.sources_list_box
         
         # Keep track of source items for easy management
         self.source_items = []
         
         # Navigation buttons
-        nav_section = toga.Box(style=Pack(direction=ROW, padding=(20, 0, 0, 0)))
+        nav_section = toga.Box(style=Pack(direction=ROW, margin=(20, 0, 0, 0)))
         back_button = toga.Button(
             "Back",
             on_press=self.back_to_file_selection,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         self.next_button = toga.Button(  # Store reference to next button
             "Next: Define Output Columns",
             on_press=self.confirm_source_selection,
-            style=Pack(padding=5),
+            style=Pack(margin=5),
             enabled=False  # Start disabled
         )
         nav_section.add(back_button)
@@ -335,10 +335,10 @@ class SourceSelectionWindow:
     def add_source_item(self, title, subtitle, item_type, col_idx=None, file_path=None):
         """Add a custom source item with a remove button."""
         # Create container for this item
-        item_box = toga.Box(style=Pack(direction=ROW, padding=(5, 0, 5, 0)))
+        item_box = toga.Box(style=Pack(direction=ROW, margin=(5, 0, 5, 0)))
         
         # Content box for title and subtitle
-        content_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=(0, 10, 0, 0)))
+        content_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=(0, 10, 0, 0)))
         
         title_label = toga.Label(
             title,
@@ -372,7 +372,7 @@ class SourceSelectionWindow:
         remove_button = toga.Button(
             "−",  # Unicode minus symbol
             on_press=create_remove_handler(item_data),
-            style=Pack(width=30, height=30, padding=(0, 5, 0, 0), background_color='#ff4444', color='white')
+            style=Pack(width=30, height=30, margin=(0, 5, 0, 0), background_color='#ff4444', color='white')
         )
         
         item_box.add(content_box)

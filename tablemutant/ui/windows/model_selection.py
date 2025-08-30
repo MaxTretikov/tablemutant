@@ -37,19 +37,19 @@ class ModelSelectionWindow:
         self.window = toga.Window(title=f"Select Model - {self.model_identifier}")
         self.window.on_close = self.on_close
         
-        content_box = toga.Box(style=Pack(direction=COLUMN, padding=15))
+        content_box = toga.Box(style=Pack(direction=COLUMN, margin=15))
         
         # Title
         title = toga.Label(
             f"Available GGUF Models for {self.model_identifier}",
-            style=Pack(padding=(0, 0, 15, 0), font_size=14, font_weight='bold')
+            style=Pack(margin=(0, 0, 15, 0), font_size=14, font_weight='bold')
         )
         content_box.add(title)
         
         # Info text
         info_text = toga.Label(
             "Select a model variant to download. Smaller models are faster but less capable.",
-            style=Pack(padding=(0, 0, 10, 0), font_size=11, color='#666666')
+            style=Pack(margin=(0, 0, 10, 0), font_size=11, color='#666666')
         )
         content_box.add(info_text)
         
@@ -78,23 +78,23 @@ class ModelSelectionWindow:
         # Selection list
         self.selection_list = toga.Selection(
             items=selection_data,
-            style=Pack(height=300, width=600, padding=(0, 0, 15, 0))
+            style=Pack(height=300, width=600, margin=(0, 0, 15, 0))
         )
         content_box.add(self.selection_list)
         
         # Buttons
-        button_box = toga.Box(style=Pack(direction=ROW, padding=(10, 0, 0, 0)))
+        button_box = toga.Box(style=Pack(direction=ROW, margin=(10, 0, 0, 0)))
         
         self.cancel_button = toga.Button(
             "Cancel",
             on_press=self.cancel,
-            style=Pack(padding=(0, 10, 0, 0))
+            style=Pack(margin=(0, 10, 0, 0))
         )
         
         self.download_button = toga.Button(
             "Download Selected",
             on_press=self.download_selected,
-            style=Pack(padding=(0, 0, 0, 0))
+            style=Pack(margin=(0, 0, 0, 0))
         )
         
         button_box.add(toga.Box(style=Pack(flex=1)))  # Spacer
@@ -104,10 +104,10 @@ class ModelSelectionWindow:
         content_box.add(button_box)
         
         # Download progress (initially hidden)
-        self.download_section = toga.Box(style=Pack(direction=COLUMN, padding=(10, 0, 0, 0)))
+        self.download_section = toga.Box(style=Pack(direction=COLUMN, margin=(10, 0, 0, 0)))
         self.download_status = toga.Label(
             "",
-            style=Pack(padding=(0, 0, 5, 0))
+            style=Pack(margin=(0, 0, 5, 0))
         )
         self.download_progress = toga.ProgressBar(
             max=100,

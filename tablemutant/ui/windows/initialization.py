@@ -5,11 +5,15 @@ InitializationWindow - Handles application startup and initialization
 
 import asyncio
 import os
+import logging
 from pathlib import Path
 
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.ui.windows.initialization')
 
 
 class InitializationWindow:
@@ -22,30 +26,30 @@ class InitializationWindow:
         
     def create_content(self):
         """Create and return the initialization window content."""
-        self.init_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        self.init_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
         
         # Title
         title = toga.Label(
             "Initializing TableMutant...",
-            style=Pack(padding=(0, 0, 20, 0), font_size=16, font_weight='bold')
+            style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
         
         # Status label
         self.status_label = toga.Label(
             "Starting up...",
-            style=Pack(padding=(0, 0, 10, 0))
+            style=Pack(margin=(0, 0, 10, 0))
         )
         
         # Progress bar
         self.init_progress = toga.ProgressBar(
             max=100,
-            style=Pack(width=400, padding=(0, 0, 10, 0))
+            style=Pack(width=400, margin=(0, 0, 10, 0))
         )
         
         # Log text area
         self.init_log = toga.MultilineTextInput(
             readonly=True,
-            style=Pack(width=600, height=300, padding=5)
+            style=Pack(width=600, height=300, margin=5)
         )
         
         self.init_box.add(title)
@@ -57,6 +61,7 @@ class InitializationWindow:
     
     async def initialize_app(self):
         """Initialize the application components."""
+        logger.debug("InitializationWindow.initialize_app")
         try:
             # Check if we need to download llamafile
             self.status_label.text = "Checking for llamafile..."
@@ -75,12 +80,15 @@ class InitializationWindow:
                 # Run download in thread to avoid blocking
                 loop = asyncio.get_event_loop()
                 try:
+                    logger.debug("InitializationWindow downloading llamafile")
                     self.app.tm.model_manager.llamafile_path = await loop.run_in_executor(
                         None, self.app.tm.model_manager.download_llamafile
                     )
                     self.init_log.value += f"Downloaded llamafile to: {self.app.tm.model_manager.llamafile_path}\n"
+                    logger.debug("InitializationWindow llamafile downloaded to: %s", self.app.tm.model_manager.llamafile_path)
                 except Exception as e:
                     self.init_log.value += f"Error downloading llamafile: {e}\n"
+                    logger.debug("InitializationWindow error downloading llamafile: %s", e)
                     raise
             else:
                 self.app.tm.model_manager.llamafile_path = str(max(existing_llamafiles, key=os.path.getctime))
@@ -116,4 +124,5 @@ class InitializationWindow:
             await asyncio.sleep(3)
         
         # Show file selection window
-        self.app.show_file_selection_window() 
+        logger.debug("InitializationWindow showing file selection window")
+        self.app.show_file_selection_window()

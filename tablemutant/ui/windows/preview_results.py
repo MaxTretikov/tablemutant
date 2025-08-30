@@ -19,12 +19,12 @@ class PreviewResultsWindow:
         
     def create_content(self, df_preview, new_columns, definitions):
         """Create and return the preview results window content."""
-        self.preview_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        self.preview_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
         
         # Title
         title = toga.Label(
             "Generation Preview",
-            style=Pack(padding=(0, 0, 20, 0), font_size=16, font_weight='bold')
+            style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
         
         # Create main content area with horizontal split
@@ -71,33 +71,33 @@ class PreviewResultsWindow:
         # Add table to left section
         table_label = toga.Label(
             "Select a row to view details",
-            style=Pack(padding=(0, 0, 5, 0), font_size=12)
+            style=Pack(margin=(0, 0, 5, 0), font_size=12)
         )
         table_section.add(table_label)
         table_section.add(preview_table)
         
         # Right side - Detail view (taking less space)
-        detail_section = toga.Box(style=Pack(direction=COLUMN, flex=2, padding=(0, 0, 0, 10)))
+        detail_section = toga.Box(style=Pack(direction=COLUMN, flex=2, margin=(0, 0, 0, 10)))
         
         detail_label = toga.Label(
             "Row Details",
-            style=Pack(padding=(0, 0, 10, 0), font_size=14, font_weight='bold')
+            style=Pack(margin=(0, 0, 10, 0), font_size=14, font_weight='bold')
         )
         
         # Create scrollable detail container
         detail_scroll = toga.ScrollContainer(
             style=Pack(
                 flex=1,
-                padding=5
+                margin=5
             ),
             vertical=True
         )
         
         # Initial detail container (empty)
-        self.detail_container = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        self.detail_container = toga.Box(style=Pack(direction=COLUMN, margin=10))
         self.detail_container.add(toga.Label(
             "No row selected",
-            style=Pack(padding=5, font_size=12)
+            style=Pack(margin=5, font_size=12)
         ))
         detail_scroll.content = self.detail_container
         
@@ -109,16 +109,16 @@ class PreviewResultsWindow:
         main_content.add(detail_section)
         
         # Navigation buttons
-        nav_section = toga.Box(style=Pack(direction=ROW, padding=(20, 0, 0, 0)))
+        nav_section = toga.Box(style=Pack(direction=ROW, margin=(20, 0, 0, 0)))
         back_button = toga.Button(
             "Back to Edit",
             on_press=self.back_to_output_definition,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         process_button = toga.Button(
             "Process Entire File",
             on_press=lambda w: self.handle_process_entire_file(definitions),
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         nav_section.add(back_button)
         nav_section.add(toga.Box(style=Pack(flex=1)))
@@ -155,20 +155,20 @@ class PreviewResultsWindow:
         # Add row number
         row_label = toga.Label(
             f"Row {selected_row_index + 1} of {len(self.current_data)}",
-            style=Pack(padding=(0, 0, 10, 0), font_size=12, font_weight='bold')
+            style=Pack(margin=(0, 0, 10, 0), font_size=12, font_weight='bold')
         )
         self.detail_container.add(row_label)
         
         # Add each field with its full content
         for i, header in enumerate(self.current_headers):
             # Create a box for each field
-            field_box = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 15, 0)))
+            field_box = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 15, 0)))
             
             # Header label
             header_label = toga.Label(
                 header,
                 style=Pack(
-                    padding=(0, 0, 5, 0),
+                    margin=(0, 0, 5, 0),
                     font_size=11,
                     font_weight='bold'
                 )
@@ -183,7 +183,7 @@ class PreviewResultsWindow:
                     value=content,
                     readonly=True,
                     style=Pack(
-                        padding=5,
+                        margin=5,
                         height=100  # Adjust height based on content
                     )
                 )
@@ -191,7 +191,7 @@ class PreviewResultsWindow:
                 content_display = toga.Label(
                     content if content else "(empty)",
                     style=Pack(
-                        padding=5
+                        margin=5
                     )
                 )
             
@@ -201,7 +201,7 @@ class PreviewResultsWindow:
             separator = toga.Box(
                 style=Pack(
                     height=1,
-                    padding=(5, 0, 0, 0)
+                    margin=(5, 0, 0, 0)
                 )
             )
             field_box.add(separator)

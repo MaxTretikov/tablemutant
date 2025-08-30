@@ -4,6 +4,7 @@ TableMutant - Main orchestrator class for generating new columns
 """
 
 import sys
+import logging
 from typing import Optional
 import polars as pl
 
@@ -12,6 +13,9 @@ from .table_processor import TableProcessor, HeaderProcessor
 from .column_generator import ColumnGenerator
 from .rag_processor import RAGProcessor
 from .embedding_cache import EmbeddingCache
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.core')
 
 __all__ = [
     'TableMutant',
@@ -270,8 +274,11 @@ class TableMutant:
                 from urllib.parse import urlparse
                 parsed = urlparse(url)
                 host = (parsed.hostname or '').lower()
-                return host in ('localhost', '127.0.0.1', '::1')
-            except Exception:
+                result = host in ('localhost', '127.0.0.1', '::1')
+                logger.debug("_is_local check for %s -> host: %s, result: %s", url, host, result)
+                return result
+            except Exception as e:
+                logger.debug("_is_local failed with error: %s", e)
                 return True  # default to local
 
         def _extract_port(url: str, default_port: int = 8000) -> int:
@@ -279,18 +286,30 @@ class TableMutant:
                 from urllib.parse import urlparse
                 parsed = urlparse(url)
                 if parsed.port:
-                    return int(parsed.port)
-                if parsed.scheme == 'https':
-                    return 443
-                if parsed.scheme == 'http':
-                    return 80
-            except Exception:
-                pass
-            return default_port
+                    result = int(parsed.port)
+                elif parsed.scheme == 'https':
+                    result = 443
+                elif parsed.scheme == 'http':
+                    result = 80
+                else:
+                    result = default_port
+                logger.debug("_extract_port check for %s -> result: %s", url, result)
+                return result
+            except Exception as e:
+                logger.debug("_extract_port failed with error: %s", e)
+                return default_port
 
         if _is_local(server_host):
             port = _extract_port(server_host, 8000)
-            self.model_manager.start_llamafile(self.model_manager.model_path, port=port)
+            logger.debug("Starting llamafile on port %s with model %s", port, self.model_manager.model_path)
+            try:
+                self.model_manager.start_llamafile(self.model_manager.model_path, port=port)
+                logger.debug("Llamafile started successfully on port %s", port)
+            except Exception as e:
+                logger.debug("Failed to start llamafile: %s", e)
+                import traceback
+                traceback.print_exc()
+                raise
         # else remote: do not start
 
         return True
@@ -301,12 +320,20 @@ class TableMutant:
         max_tokens = self.settings_manager.get('max_tokens', 2048)
         server_host = self.settings_manager.get('server_host', 'http://localhost:8000')
         auth_token = self.settings_manager.get('auth_token', '')
-        self.column_generator.setup_dspy(
-            temperature=temperature,
-            max_tokens=max_tokens,
-            server_host=server_host,
-            api_key=auth_token
-        )
+        logger.debug("Setting up DSPy with server_host: %s", server_host)
+        try:
+            self.column_generator.setup_dspy(
+                temperature=temperature,
+                max_tokens=max_tokens,
+                server_host=server_host,
+                api_key=auth_token
+            )
+            logger.debug("DSPy setup completed successfully")
+        except Exception as e:
+            logger.debug("Failed to setup DSPy: %s", e)
+            import traceback
+            traceback.print_exc()
+            raise
         
         return True
         

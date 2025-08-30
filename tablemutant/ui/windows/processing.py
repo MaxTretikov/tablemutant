@@ -9,6 +9,7 @@ import os
 import threading
 import time
 import urllib.request
+import logging
 from datetime import timedelta
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
@@ -18,6 +19,9 @@ from toga.style import Pack
 from toga.style.pack import COLUMN
 import dspy
 import polars as pl
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.ui.windows.processing')
 
 
 class ProcessingWindow:
@@ -42,56 +46,56 @@ class ProcessingWindow:
         
     def create_content(self, preview_only=True):
         """Create and return the processing window content."""
-        self.process_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        self.process_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
         
         # Title
         title = toga.Label(
             "Processing..." if not preview_only else "Generating Preview...",
-            style=Pack(padding=(0, 0, 20, 0), font_size=16, font_weight='bold')
+            style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
         
         # Status
         self.process_status = toga.Label(
             "Initializing model...",
-            style=Pack(padding=(0, 0, 10, 0))
+            style=Pack(margin=(0, 0, 10, 0))
         )
         
         # Progress bar
         self.process_progress = toga.ProgressBar(
             max=100,
-            style=Pack(width=500, padding=(0, 0, 10, 0))
+            style=Pack(width=500, margin=(0, 0, 10, 0))
         )
         
         # Time estimate
         self.time_estimate = toga.Label(
             "Estimating time...",
-            style=Pack(padding=(0, 0, 10, 0))
+            style=Pack(margin=(0, 0, 10, 0))
         )
         
         # Tokens info
         self.tokens_info = toga.Label(
             "Tokens: 0 | Speed: -- tokens/sec",
-            style=Pack(padding=(0, 0, 20, 0))
+            style=Pack(margin=(0, 0, 20, 0))
         )
         
         # Prompt header
         self.prompt_header = toga.Label(
             "Current Prompt:",
-            style=Pack(padding=(0, 0, 5, 0), font_size=14, font_weight='bold')
+            style=Pack(margin=(0, 0, 5, 0), font_size=14, font_weight='bold')
         )
         
         # Prompt display
         self.prompt_display = toga.MultilineTextInput(
             readonly=True,
             placeholder="Current prompt will appear here...",
-            style=Pack(width=500, height=200, padding=(0, 0, 20, 0))
+            style=Pack(width=500, height=200, margin=(0, 0, 20, 0))
         )
         
         # Cancel button
         self.cancel_button = toga.Button(
             "Cancel",
             on_press=self.cancel_processing,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         
         self.process_box.add(title)
@@ -191,8 +195,10 @@ class ProcessingWindow:
             
             # Check if server is already running at configured host
             server_host = self.app.settings_manager.get('server_host', 'http://localhost:8000')
+            logger.debug("Checking server at %s", server_host)
             auth_token = self.app.settings_manager.get('auth_token', '')
             models_url = (server_host.rstrip('/')) + '/v1/models'
+            logger.debug("Models URL: %s", models_url)
 
             # Determine if host is local to customize status text
             def _is_local(url: str) -> bool:
@@ -215,7 +221,8 @@ class ProcessingWindow:
                         self.app.server_was_running = True
                     else:
                         self.app.server_was_running = False
-            except Exception:
+            except Exception as e:
+                logger.debug("Server check failed: %s", e)
                 self.app.server_was_running = False
             
             # Always configure DSPy in the main thread, even if server was already running
@@ -239,13 +246,19 @@ class ProcessingWindow:
             
             if not self.app.server_was_running:
                 # If host is local, we will start llamafile. If remote, skip starting server.
+                server_host = self.app.settings_manager.get('server_host', 'http://localhost:8000')
+                logger.debug("Processing server_host: %s", server_host)
+                
                 def _is_local(url: str) -> bool:
                     try:
                         from urllib.parse import urlparse
                         parsed = urlparse(url)
                         host = (parsed.hostname or '').lower()
-                        return host in ('localhost', '127.0.0.1', '::1')
-                    except Exception:
+                        result = host in ('localhost', '127.0.0.1', '::1')
+                        logger.debug("_is_local check for %s -> host: %s, result: %s", url, host, result)
+                        return result
+                    except Exception as e:
+                        logger.debug("_is_local failed with error: %s", e)
                         return True
 
                 server_host = self.app.settings_manager.get('server_host', 'http://localhost:8000')
@@ -253,12 +266,18 @@ class ProcessingWindow:
                     await self.update_progress(20, "Setting up model and local server...")
                     
                     def setup_model_and_server():
-                        return self.app.tm.setup_model_and_server_only()
+                        logger.debug("Starting setup_model_and_server")
+                        result = self.app.tm.setup_model_and_server_only()
+                        logger.debug("setup_model_and_server completed")
+                        return result
                     
                     try:
                         await loop.run_in_executor(self.executor, setup_model_and_server)
                         await self.update_progress(40, "Model and server setup complete!")
                     except Exception as e:
+                        logger.debug("setup_model_and_server failed: %s", e)
+                        import traceback
+                        traceback.print_exc()
                         raise Exception(f"Failed to setup model: {e}")
                 else:
                     await self.update_progress(40, "Using remote server endpoint...")
@@ -266,7 +285,9 @@ class ProcessingWindow:
                 # Configure DSPy in the main thread to avoid thread conflicts
                 await self.update_progress(45, "Configuring DSPy...")
                 try:
+                    logger.debug("Starting setup_dspy_configuration")
                     self.app.tm.setup_dspy_configuration()
+                    logger.debug("setup_dspy_configuration completed")
                     await self.update_progress(50, "DSPy configuration complete!")
                 except Exception as e:
                     # If DSPy configuration fails due to thread conflicts, try to reset and reconfigure
@@ -275,10 +296,16 @@ class ProcessingWindow:
                     try:
                         # Create a fresh column generator instance to avoid thread conflicts
                         from tablemutant.core.column_generator import ColumnGenerator
+                        logger.debug("Creating fresh ColumnGenerator instance")
                         self.app.tm.column_generator = ColumnGenerator()
+                        logger.debug("Starting retry setup_dspy_configuration")
                         self.app.tm.setup_dspy_configuration()
+                        logger.debug("Retry setup_dspy_configuration completed")
                         await self.update_progress(50, "DSPy configuration complete!")
                     except Exception as e2:
+                        logger.debug("Retry DSPy configuration failed: %s", e2)
+                        import traceback
+                        traceback.print_exc()
                         raise Exception(f"Failed to configure DSPy: {e2}")
             
             if self.processing_cancelled:
@@ -425,10 +452,15 @@ class ProcessingWindow:
                     tokens_text = self.calculate_tokens_text()
                     
                     # Debug output
-                    print(f"DEBUG: Progress update - completed: {completed}/{total_operations}, elapsed: {elapsed:.1f}s")
-                    print(f"DEBUG: Token history length: {len(self.token_history)}, tokens: {self.total_tokens}")
-                    print(f"DEBUG: Time text: {time_text}")
-                    print(f"DEBUG: Tokens text: {tokens_text}")
+                    logger.debug(
+                        "Progress update - completed: %s/%s, elapsed: %.1fs\n"
+                        "Token history length: %s, tokens: %s\n"
+                        "Time text: %s\n"
+                        "Tokens text: %s",
+                        completed, total_operations, elapsed,
+                        len(self.token_history), self.total_tokens,
+                        time_text, tokens_text
+                    )
                     
                     # Update UI before starting generation
                     await self.update_progress(progress, status, time_text, tokens_text)
@@ -703,11 +735,13 @@ class ProcessingWindow:
         """Do a quick calibration to estimate tokens per second."""
         try:
             async def calibrate():
+                logger.debug("Configuring DSPy cache")
                 dspy.configure_cache(
                     enable_disk_cache=False,
                     enable_memory_cache=False,
                     enable_litellm_cache=False
                 )
+                logger.debug("DSPy cache configured")
 
                 # Simple signature for calibration
                 class CalibrationSig(dspy.Signature):
@@ -730,8 +764,10 @@ class ProcessingWindow:
                 calibrator = dspy.ChainOfThought(CalibrationSig)
                 
                 start_time = time.time()
+                logger.debug("Starting calibration generation")
                 result = calibrator(**calibration_inputs)
                 elapsed = time.time() - start_time
+                logger.debug("Calibration generation completed in %.2f seconds", elapsed)
                 
                 # Try to get token count from the response
                 tokens_used = 0
@@ -743,9 +779,9 @@ class ProcessingWindow:
                     history = dspy.settings.lm.history
                     if history and len(history) > 0:
                         last_call = history[-1]
-                        print(f"DEBUG: Last call structure: {type(last_call)}")
+                        logger.debug("Last call structure: %s", type(last_call))
                         if hasattr(last_call, 'get'):
-                            print(f"DEBUG: Last call keys: {last_call.keys() if hasattr(last_call, 'keys') else 'no keys'}")
+                            logger.debug("Last call keys: %s", last_call.keys() if hasattr(last_call, 'keys') else 'no keys')
                         
                         if isinstance(last_call, dict):
                             # Try different ways to extract usage
@@ -761,22 +797,23 @@ class ProcessingWindow:
                                 prompt_tokens = usage.get('prompt_tokens', 0)
                                 completion_tokens = usage.get('completion_tokens', 0)
                                 tokens_used = completion_tokens
-                                print(f"DEBUG: Found tokens - prompt: {prompt_tokens}, completion: {completion_tokens}")
+                                logger.debug("Found tokens - prompt: %s, completion: %s", prompt_tokens, completion_tokens)
                             else:
-                                print(f"DEBUG: No usage found in last call")
+                                logger.debug("No usage found in last call")
                         else:
-                            print(f"DEBUG: Last call is not a dict: {last_call}")
+                            logger.debug("Last call is not a dict: %s", last_call)
                 
                 # Update totals with calibration tokens
                 if prompt_tokens > 0 or completion_tokens > 0:
                     self.total_prompt_tokens += prompt_tokens
                     self.total_completion_tokens += completion_tokens
                     self.total_tokens = self.total_prompt_tokens + self.total_completion_tokens
-                    print(f"DEBUG: Updated totals - total: {self.total_tokens}, prompt: {self.total_prompt_tokens}, completion: {self.total_completion_tokens}")
+                    logger.debug("Updated totals - total: %s, prompt: %s, completion: %s",
+                               self.total_tokens, self.total_prompt_tokens, self.total_completion_tokens)
                 
                 if tokens_used > 0 and elapsed > 0:
                     rate = tokens_used / elapsed
-                    print(f"DEBUG: Calibration rate: {rate:.1f} tokens/sec")
+                    logger.debug("Calibration rate: %.1f tokens/sec", rate)
                     # Add the calibration rate to our token history
                     self.token_history.append(rate)
                     return rate
@@ -787,7 +824,7 @@ class ProcessingWindow:
                         estimated_tokens = 50
                         self.total_completion_tokens += estimated_tokens
                         self.total_tokens = self.total_prompt_tokens + self.total_completion_tokens
-                        print(f"DEBUG: Using estimated tokens: {estimated_tokens}")
+                        logger.debug("Using estimated tokens: %s", estimated_tokens)
                         rate = estimated_tokens / elapsed
                         # Add the estimated rate to our token history
                         self.token_history.append(rate)
@@ -799,11 +836,14 @@ class ProcessingWindow:
             
         except Exception as e:
             print(f"Calibration failed: {e}")
+            import traceback
+            traceback.print_exc()
             return 0  # Return 0 if calibration fails
     
     def calculate_tokens_text(self):
         """Calculate and format token statistics."""
-        print(f"DEBUG: calculate_tokens_text - generation_start_time: {self.generation_start_time}, total_tokens: {self.total_tokens}")
+        logger.debug("calculate_tokens_text - generation_start_time: %s, total_tokens: %s",
+                   self.generation_start_time, self.total_tokens)
         
         if self.generation_start_time and self.total_tokens > 0:
             total_time = time.time() - self.generation_start_time
@@ -818,11 +858,11 @@ class ProcessingWindow:
             result = (f"Tokens: {self.total_tokens:,} total "
                     f"({self.total_prompt_tokens:,} prompt, {self.total_completion_tokens:,} completion) | "
                     f"Speed: {recent_rate:.1f} tokens/sec")
-            print(f"DEBUG: calculate_tokens_text result: {result}")
+            logger.debug("calculate_tokens_text result: %s", result)
             return result
         else:
             result = "Tokens: 0 | Speed: -- tokens/sec"
-            print(f"DEBUG: calculate_tokens_text fallback result: {result}")
+            logger.debug("calculate_tokens_text fallback result: %s", result)
             return result
     
     async def cancel_processing(self, widget):

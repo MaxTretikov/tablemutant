@@ -4,6 +4,7 @@ SettingsWindow - Application settings configuration
 """
 
 import asyncio
+import logging
 import os
 import re
 import shutil
@@ -23,6 +24,9 @@ from toga.style.pack import COLUMN, ROW
 import urllib.parse
 
 from .model_selection import ModelSelectionWindow
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.ui.windows.settings')
 
 
 class SettingsWindow:
@@ -104,20 +108,20 @@ class SettingsWindow:
         self.window.on_close = self.on_close
         
         # Create content
-        content_box = toga.Box(style=Pack(direction=COLUMN, padding=10))
+        content_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
         
         # Title
         title = toga.Label(
             "Application Settings",
-            style=Pack(padding=(0, 0, 20, 0), font_size=16, font_weight='bold')
+            style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
         content_box.add(title)
         
         # Model section
-        model_section = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 15, 0)))
+        model_section = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 15, 0)))
         model_label = toga.Label(
             "Language Model:",
-            style=Pack(padding=(0, 0, 5, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 5, 0), font_weight='bold')
         )
         
         model_input_section = toga.Box(style=Pack(direction=ROW))
@@ -131,7 +135,7 @@ class SettingsWindow:
         )
         
         # Table for model search results (initially hidden)
-        self.model_table_container = toga.Box(style=Pack(direction=COLUMN, padding=(5, 0, 0, 0)))
+        self.model_table_container = toga.Box(style=Pack(direction=COLUMN, margin=(5, 0, 0, 0)))
         self.model_table = None  # Will be created dynamically
         self.current_table_data = []
         self.model_table_lookup = {}
@@ -139,14 +143,14 @@ class SettingsWindow:
         self.check_button = toga.Button(
             "Check",
             on_press=self.check_model,
-            style=Pack(padding=(0, 10, 0, 0))
+            style=Pack(margin=(0, 10, 0, 0))
         )
 
         # Button to fetch remote models when using non-local server
         self.fetch_remote_models_button = toga.Button(
             "Fetch Remote Models",
             on_press=self.fetch_remote_models,
-            style=Pack(padding=(0, 0, 0, 10))
+            style=Pack(margin=(0, 0, 0, 10))
         )
         
         model_input_section.add(self.model_input)
@@ -155,7 +159,7 @@ class SettingsWindow:
         
         model_help = toga.Label(
             "Examples: unsloth/medgemma-27b-text-it-GGUF, /path/to/model.gguf",
-            style=Pack(padding=(5, 0, 0, 0), font_size=10, color='#666666')
+            style=Pack(margin=(5, 0, 0, 0), font_size=10, color='#666666')
         )
         
         model_section.add(model_label)
@@ -174,10 +178,10 @@ class SettingsWindow:
         # Will be created later in Server Settings section where host_input exists
         
         # Download progress (initially hidden)
-        self.download_section = toga.Box(style=Pack(direction=COLUMN, padding=(10, 0, 0, 0)))
+        self.download_section = toga.Box(style=Pack(direction=COLUMN, margin=(10, 0, 0, 0)))
         self.download_status = toga.Label(
             "",
-            style=Pack(padding=(0, 0, 5, 0))
+            style=Pack(margin=(0, 0, 5, 0))
         )
         self.download_progress = toga.ProgressBar(
             max=100,
@@ -187,14 +191,14 @@ class SettingsWindow:
         self.download_section.add(self.download_progress)
         
         # Server settings section
-        server_section = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 15, 0)))
+        server_section = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 15, 0)))
         server_label = toga.Label(
             "Server Settings:",
-            style=Pack(padding=(0, 0, 10, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 10, 0), font_weight='bold')
         )
 
         # Host input
-        host_row = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 5, 0)))
+        host_row = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 5, 0)))
         host_label = toga.Label(
             "Host:",
             style=Pack(width=100)
@@ -208,7 +212,7 @@ class SettingsWindow:
         host_row.add(self.host_input)
 
         # Auth token (conditionally visible for non-local hosts)
-        token_row = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 5, 0)))
+        token_row = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 5, 0)))
         token_label = toga.Label(
             "Auth Token:",
             style=Pack(width=100)
@@ -266,13 +270,13 @@ class SettingsWindow:
         finalize_toggle()
         
         # Generation settings section
-        gen_section = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 15, 0)))
+        gen_section = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 15, 0)))
         gen_label = toga.Label(
             "Generation Settings:",
-            style=Pack(padding=(0, 0, 10, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 10, 0), font_weight='bold')
         )
         
-        temp_row = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 5, 0)))
+        temp_row = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 5, 0)))
         temp_label = toga.Label(
             "Temperature:",
             style=Pack(width=100)
@@ -287,7 +291,7 @@ class SettingsWindow:
         temp_row.add(temp_label)
         temp_row.add(self.temperature_input)
         
-        tokens_row = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 5, 0)))
+        tokens_row = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 5, 0)))
         tokens_label = toga.Label(
             "Max Tokens:",
             style=Pack(width=100)
@@ -309,11 +313,11 @@ class SettingsWindow:
         # Warning label
         warning_label = toga.Label(
             "⚠️ Changing the model will restart the application",
-            style=Pack(padding=(10, 0, 10, 0), color='#ff6600', font_weight='bold')
+            style=Pack(margin=(10, 0, 10, 0), color='#ff6600', font_weight='bold')
         )
         
         # Buttons
-        button_section = toga.Box(style=Pack(direction=ROW, padding=(20, 0, 0, 0)))
+        button_section = toga.Box(style=Pack(direction=ROW, margin=(20, 0, 0, 0)))
         
         # Danger zone buttons (left side)
         danger_buttons = toga.Box(style=Pack(direction=ROW))
@@ -321,13 +325,13 @@ class SettingsWindow:
         delete_models_button = toga.Button(
             "Delete All Models",
             on_press=self.delete_all_models,
-            style=Pack(padding=(0, 10, 0, 0), background_color='#dc3545', color='white')
+            style=Pack(margin=(0, 10, 0, 0), background_color='#dc3545', color='white')
         )
         
         reset_settings_button = toga.Button(
             "Reset to Defaults",
             on_press=self.reset_settings,
-            style=Pack(padding=(0, 10, 0, 0), background_color='#6c757d', color='white')
+            style=Pack(margin=(0, 10, 0, 0), background_color='#6c757d', color='white')
         )
         
         danger_buttons.add(delete_models_button)
@@ -339,12 +343,12 @@ class SettingsWindow:
         cancel_button = toga.Button(
             "Cancel",
             on_press=self.cancel,
-            style=Pack(padding=(0, 10, 0, 0))
+            style=Pack(margin=(0, 10, 0, 0))
         )
         self.apply_button = toga.Button(
             "Apply",
             on_press=self.apply_settings,
-            style=Pack(padding=(0, 0, 0, 0))
+            style=Pack(margin=(0, 0, 0, 0))
         )
         
         main_buttons.add(cancel_button)
@@ -422,8 +426,8 @@ class SettingsWindow:
             models = sorted(set(models))
             table = toga.Table(headings=["Model ID"], data=[[m] for m in models], style=Pack(height=200, width=500))
             temp_win = toga.Window(title="Select Remote Model")
-            box = toga.Box(style=Pack(direction=COLUMN, padding=10))
-            box.add(toga.Label("Select a model from the remote server:", style=Pack(padding=(0,0,10,0))))
+            box = toga.Box(style=Pack(direction=COLUMN, margin=10))
+            box.add(toga.Label("Select a model from the remote server:", style=Pack(margin=(0,0,10,0))))
             box.add(table)
 
             async def on_select_and_close(widget_btn):
@@ -442,9 +446,9 @@ class SettingsWindow:
                         self._updating_model_input = False
                 temp_win.close()
 
-            btn_row = toga.Box(style=Pack(direction=ROW, padding=(10,0,0,0)))
+            btn_row = toga.Box(style=Pack(direction=ROW, margin=(10,0,0,0)))
             btn_ok = toga.Button("Use Selected", on_press=on_select_and_close)
-            btn_cancel = toga.Button("Cancel", on_press=lambda w: temp_win.close(), style=Pack(padding=(0,0,0,10)))
+            btn_cancel = toga.Button("Cancel", on_press=lambda w: temp_win.close(), style=Pack(margin=(0,0,0,10)))
             btn_row.add(btn_cancel)
             btn_row.add(btn_ok)
             box.add(btn_row)
@@ -704,7 +708,7 @@ class SettingsWindow:
         # Calculate dynamic height based on number of results (max 6 rows visible for compact display)
         max_visible_rows = min(6, len(table_data))
         row_height = 25  # Approximate height per row
-        table_height = max_visible_rows * row_height + 35  # +35 for header and padding
+        table_height = max_visible_rows * row_height + 35  # +35 for header and margin
         
         # Create the table
         self.model_table = toga.Table(
@@ -976,7 +980,7 @@ class SettingsWindow:
                                     else:
                                         print(f"✓ {filename} size matches remote ({local_size} bytes)")
                             else:
-                                print(f"Could not verify {filename} (HTTP {response.status})")
+                                logger.debug("Could not verify %s (HTTP %s)", filename, response.status)
                     except Exception as e:
                         print(f"Error checking {filename}: {e}")
                         # Don't mark as corrupted if we can't verify - could be network issue

@@ -1,0 +1,611 @@
+Date/Time:       2025-08-29 20:05:40 
+Command line:    /Users/lila/Projects/Code/otr/tablemutant/.venv/bin/briefcase run -u --log
+
+OS Release:      Darwin 24.5.0
+OS Version:      Darwin Kernel Version 24.5.0: Tue Apr 22 20:42:11 PDT 2025; root:xnu-11417.121.6~4/RELEASE_ARM64_T6031
+Architecture:    arm64
+Platform:        macOS-15.5-arm64-arm-64bit
+
+Python exe:      /Users/lila/Projects/Code/otr/tablemutant/.venv/bin/python3
+Python version:  3.12.3 (main, Jun 11 2024, 14:15:30) [Clang 15.0.0 (clang-1500.3.9.4)]
+Virtual env:     True
+Conda env:       False
+
+Briefcase:       0.3.24
+Target platform: macOS
+Target format:   app
+
+Environment Variables:
+	EDITOR=vim
+	HOME=/Users/lila
+	HOMEBREW_CELLAR=/opt/homebrew/Cellar
+	HOMEBREW_PREFIX=/opt/homebrew
+	HOMEBREW_REPOSITORY=/opt/homebrew
+	INFOPATH=/opt/homebrew/share/info:
+	LANG=en_US.UTF-8
+	LESS=-R
+	LOGNAME=lila
+	LSCOLORS=Gxfxcxdxbxegedabagacad
+	LS_COLORS=di=1;36:ln=35:so=32:pi=33:ex=31:bd=34;46:cd=34;43:su=30;41:sg=30;46:tw=30;42:ow=30;43
+	OLDPWD=/Users/lila/Projects/Code/otr
+	PAGER=less
+	PATH=/Users/lila/Projects/Code/otr/tablemutant/.venv/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/opt/homebrew/opt/libomp/bin:/opt/homebrew/opt/llvm/bin:/Users/lila/.bun/bin:/Users/lila/.asdf/shims:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/Users/lila/.local/bin
+	PS1=(tablemutant) ${ret_status}%{$fg[blue]%}${PROMPT_HOST}%{$fg_bold[green]%} %{$fg_bold[yellow]%}%2~ ${vcs_info_msg_0_}${dir_status}%{$reset_color%} 
+	PWD=/Users/lila/Projects/Code/otr/tablemutant
+	SHELL=/bin/zsh
+	SHLVL=1
+	SSH_AUTH_SOCK=/private/tmp/com.apple.launchd.wErltMT3DR/Listeners
+	TERM=xterm-256color
+	TERM_PROGRAM=Apple_Terminal
+	TERM_PROGRAM_VERSION=455.1
+	TERM_SESSION_ID=6625A708-4C5F-49CB-A10B-4E12584B34DF
+	TMPDIR=/var/folders/rd/4ps353t10yb1b1dpfz5wbpj00000gn/T/
+	USER=lila
+	VIRTUAL_ENV=/Users/lila/Projects/Code/otr/tablemutant/.venv
+	VIRTUAL_ENV_PROMPT=(tablemutant) 
+	XPC_FLAGS=0x0
+	XPC_SERVICE_NAME=0
+	ZSH=/Users/lila/.oh-my-zsh
+	_=/Users/lila/Projects/Code/otr/tablemutant/.venv/bin/briefcase
+	__CFBundleIdentifier=com.apple.Terminal
+	__CF_USER_TEXT_ENCODING=0x1F5:0x0:0x0
+
+pyproject.toml:
+[project]
+name = "tablemutant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+dependencies = [
+    "aiohttp",
+    "chardet",
+    "dspy",
+    "huggingface_hub",
+    "numpy",
+    "polars",
+    "pypdf",
+    "scikit-learn",
+    "scipy",
+    "sentence-transformers",
+    "toga",
+    "tqdm",
+]
+
+[tool.briefcase]
+project_name = "TableMutant"
+bundle = "org.tablemutant"
+version = "0.1.0"
+url = "https://github.com/your-org/tablemutant"
+author = "TableMutant"
+author_email = "devnull@example.com"
+formal_name = "TableMutant"
+description = "Generate new columns in datasets using LLMs"
+
+[tool.briefcase.app.tablemutant]
+formal_name = "TableMutant"
+bundle = "org.tablemutant"
+version = "0.1.0"
+description = "Generate new columns in datasets using LLMs"
+sources = ["tablemutant"]
+# Keep runtime framework minimal; app deps are in [project.dependencies]
+requires = ["toga>=0.4.7", "std-nslog"]
+# Entry point: module:function for the app startup
+entry_point = "tablemutant.__main__:main"
+
+# Test configuration
+test_sources = ["tests"]
+test_requires = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0"
+]
+
+# Generic icon (fallback). Per-platform variants override this.
+icon = "resources/icons/tablemutant"
+
+# macOS specific settings
+[tool.briefcase.app.tablemutant.macOS]
+requires = ["toga-cocoa>=0.4.7"]
+icon = "resources/icons/macos"
+min_os_version = "12.0"
+universal_build = false
+
+# Linux settings
+[tool.briefcase.app.tablemutant.linux]
+requires = ["toga-gtk>=0.4.7"]
+icon = "resources/icons/linux"
+
+# Windows settings
+[tool.briefcase.app.tablemutant.windows]
+requires = ["toga-winforms>=0.4.7"]
+icon = "resources/icons/windows"
+
+# iOS (optional future target)
+[tool.briefcase.app.tablemutant.iOS]
+requires = ["toga-iOS>=0.4.7"]
+icon = "resources/icons/ios"
+
+# Android (optional future target)
+[tool.briefcase.app.tablemutant.android]
+requires = ["toga-android>=0.4.7"]
+icon = "resources/icons/android"
+
+Briefcase Log:
+[20:05:36]                                                                                                                                                              update.py:60
+           [tablemutant] Updating application code...                                                                                                                   update.py:60
+           Installing tablemutant... started                                                                                                                           create.py:733
+           Installing tablemutant... done                                                                                                                              create.py:733
+                                                                                                                                                                        update.py:89
+           [tablemutant] Removing unneeded app content...                                                                                                               update.py:89
+           Removing unneeded app bundle content... started                                                                                                             create.py:896
+           Removing directory TableMutant.app/Contents/Resources/app/tablemutant/__pycache__                                                                           create.py:903
+           Removing directory TableMutant.app/Contents/Resources/app/tablemutant/ui/__pycache__                                                                        create.py:903
+           Removing directory TableMutant.app/Contents/Resources/app/tablemutant/core/__pycache__                                                                      create.py:903
+           Removing directory TableMutant.app/Contents/Resources/app/tablemutant/ui/windows/__pycache__                                                                create.py:903
+           Removing unneeded app bundle content... done                                                                                                                create.py:896
+                                                                                                                                                                        update.py:92
+           [tablemutant] Application updated.                                                                                                                           update.py:92
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     xattr -p 'com.apple.fileprovider.fpfs#P' /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app                  subprocess.py:838
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Command Output:                                                                                                                                     subprocess.py:838
+           >>>     xattr: /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app: No such xattr: com.apple.fileprovider.fpfs#P      subprocess.py:838
+           >>> Return code: 1                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+                                                                                                                                                                          app.py:114
+           [tablemutant] Building App...                                                                                                                                  app.py:114
+           Ensuring stub binary is thin... started                                                                                                                        app.py:123
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     lipo -info /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/MacOS/TableMutant                     subprocess.py:838
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Command Output:                                                                                                                                     subprocess.py:838
+           >>>     Non-fat file: /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/MacOS/TableMutant is architecture: subprocess.py:838
+           arm64                                                                                                                                                                    
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/MacOS/TableMutant is already thin.                             utils.py:92
+           Ensuring stub binary is thin... done                                                                                                                           app.py:123
+                                                                                                                                                                          app.py:140
+           [tablemutant] Ad-hoc signing app...                                                                                                                            app.py:140
+[20:05:39] Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/yarl/_quoting_c.cpython-312-darwin.so                                 __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/yarl/_quoting_c.cpython-312-darwi                  
+           n.so --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                            
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/yaml/_yaml.cpython-312-darwin.so                                      __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/yaml/_yaml.cpython-312-darwin.so                   
+           --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                 
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/xxhash/_xxhash.cpython-312-darwin.so                                  __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/xxhash/_xxhash.cpython-312-darwin                  
+           .so --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                             
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libtorch_python.dylib                                       __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libtorch_python.dylib                    
+           --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                 
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libtorch_global_deps.dylib                                  __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libtorch_global_deps.dy                  
+           lib --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                             
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libtorch_cpu.dylib                                          __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libtorch_cpu.dylib                       
+           --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                 
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libtorch.dylib                                              __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libtorch.dylib --sign -                  
+           --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                          
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libshm.dylib                                                __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libshm.dylib --sign -                    
+           --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                          
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libomp.dylib                                                __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libomp.dylib --sign -                    
+           --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                          
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libc10.dylib                                                __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/lib/libc10.dylib --sign -                    
+           --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                          
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/bin/torch_shm_manager                                           __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/bin/torch_shm_manager                        
+           --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                 
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/bin/protoc-3.13.0.0                                             __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/bin/protoc-3.13.0.0 --sign                   
+           - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                        
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/bin/protoc                                                      __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/bin/protoc subprocess.py:838
+           --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                 
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+[20:05:40] >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/_C.cpython-312-darwin.so                                        __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/_C.cpython-312-darwin.so                     
+           --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                 
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/tokenizers/tokenizers.abi3.so                                         __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/tokenizers/tokenizers.abi3.so                      
+           --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                                 
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/tiktoken/_tiktoken.cpython-312-darwin.so                              __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/tiktoken/_tiktoken.cpython-312-da                  
+           rwin.so --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                         
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/util.cpython-312-darwin.so                     __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/util.cpyth                  
+           on-312-darwin.so --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                                
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/resultproxy.cpython-312-darwin.so              __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/resultprox                  
+           y.cpython-312-darwin.so --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                         
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/processors.cpython-312-darwin.so               __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/processors                  
+           .cpython-312-darwin.so --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                          
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/immutabledict.cpython-312-darwin.so            __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/immutabled                  
+           ict.cpython-312-darwin.so --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                       
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           Signing build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/collections.cpython-312-darwin.so              __init__.py:719
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     codesign                                                                                                                                        subprocess.py:838
+           /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/collection                  
+           s.cpython-312-darwin.so --sign - --force --entitlements /Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/Entitlements.plist                         
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant                                                                                                       subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+           >>> Return code: 0                                                                                                                                      subprocess.py:838
+                                                                                                                                                                   subprocess.py:838
+                                                                                                                                                                      __main__.py:50
+           Aborted by user.                                                                                                                                           __main__.py:51
+                                                                                                                                                                      __main__.py:52
+           Saving log... started                                                                                                                                      console.py:433
+
+Main thread traceback:
+╭─────────────────────────────────────────────────────────────────────── Traceback (most recent call last) ────────────────────────────────────────────────────────────────────────╮
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/__main__.py:27 in main                                                                    │
+│                                                                                                                                                                                  │
+│   24 │   │   │   Path.cwd() / "pyproject.toml",                                                                                                                                  │
+│   25 │   │   │   overrides=overrides,                                                                                                                                            │
+│   26 │   │   )                                                                                                                                                                   │
+│ ❱ 27 │   │   command(**options)                                                                                                                                                  │
+│   28 │   except HelpText as e:                                                                                                                                                   │
+│   29 │   │   console.info()                                                                                                                                                      │
+│   30 │   │   console.info(str(e))                                                                                                                                                │
+│                                                                                                                                                                                  │
+│ ╭───────────────────────────────────────── locals ─────────────────────────────────────────╮                                                                                     │
+│ │       command = <briefcase.platforms.macOS.app.macOSAppRunCommand object at 0x103462f90> │                                                                                     │
+│ │       console = <briefcase.console.Console object at 0x101234830>                        │                                                                                     │
+│ │ extra_cmdline = ['-u', '--log']                                                          │                                                                                     │
+│ │       options = {                                                                        │                                                                                     │
+│ │                 │   'appname': None,                                                     │                                                                                     │
+│ │                 │   'update': True,                                                      │                                                                                     │
+│ │                 │   'update_requirements': False,                                        │                                                                                     │
+│ │                 │   'update_support': False,                                             │                                                                                     │
+│ │                 │   'update_stub': False,                                                │                                                                                     │
+│ │                 │   'update_resources': False,                                           │                                                                                     │
+│ │                 │   'no_update': False,                                                  │                                                                                     │
+│ │                 │   'test_mode': False,                                                  │                                                                                     │
+│ │                 │   'passthrough': []                                                    │                                                                                     │
+│ │                 }                                                                        │                                                                                     │
+│ │     overrides = {}                                                                       │                                                                                     │
+│ │        result = -42                                                                      │                                                                                     │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────╯                                                                                     │
+│                                                                                                                                                                                  │
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/commands/run.py:306 in __call__                                                           │
+│                                                                                                                                                                                  │
+│   303 │   │   │   │   app.test_mode and not no_update                                                                                                                            │
+│   304 │   │   │   )  # Test mode, but updates have not been disabled                                                                                                             │
+│   305 │   │   ):                                                                                                                                                                 │
+│ ❱ 306 │   │   │   state = self.build_command(                                                                                                                                    │
+│   307 │   │   │   │   app,                                                                                                                                                       │
+│   308 │   │   │   │   update=update,                                                                                                                                             │
+│   309 │   │   │   │   update_requirements=update_requirements,                                                                                                                   │
+│                                                                                                                                                                                  │
+│ ╭────────────────────────────────────────────────────────────────────── locals ───────────────────────────────────────────────────────────────────────╮                          │
+│ │                 app = <org.tablemutant.tablemutant v0.1.0 AppConfig>                                                                                │                          │
+│ │             appname = None                                                                                                                          │                          │
+│ │           exec_file = PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/MacOS/TableMutant') │                          │
+│ │           no_update = False                                                                                                                         │                          │
+│ │             options = {}                                                                                                                            │                          │
+│ │         passthrough = []                                                                                                                            │                          │
+│ │                self = <briefcase.platforms.macOS.app.macOSAppRunCommand object at 0x103462f90>                                                      │                          │
+│ │       template_file = PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app')                                            │                          │
+│ │           test_mode = False                                                                                                                         │                          │
+│ │              update = True                                                                                                                          │                          │
+│ │ update_requirements = False                                                                                                                         │                          │
+│ │    update_resources = False                                                                                                                         │                          │
+│ │         update_stub = False                                                                                                                         │                          │
+│ │      update_support = False                                                                                                                         │                          │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯                          │
+│                                                                                                                                                                                  │
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/commands/build.py:154 in __call__                                                         │
+│                                                                                                                                                                                  │
+│   151 │   │                                                                                                                                                                      │
+│   152 │   │   state = None                                                                                                                                                       │
+│   153 │   │   for app_name, app_obj in sorted(apps_to_build.items()):                                                                                                            │
+│ ❱ 154 │   │   │   state = self._build_app(                                                                                                                                       │
+│   155 │   │   │   │   app_obj,                                                                                                                                                   │
+│   156 │   │   │   │   update=update,                                                                                                                                             │
+│   157 │   │   │   │   update_requirements=update_requirements,                                                                                                                   │
+│                                                                                                                                                                                  │
+│ ╭───────────────────────────────────────────── locals ─────────────────────────────────────────────╮                                                                             │
+│ │                 app = <org.tablemutant.tablemutant v0.1.0 AppConfig>                             │                                                                             │
+│ │            app_name = 'tablemutant'                                                              │                                                                             │
+│ │             app_obj = <org.tablemutant.tablemutant v0.1.0 AppConfig>                             │                                                                             │
+│ │       apps_to_build = {'tablemutant': <org.tablemutant.tablemutant v0.1.0 AppConfig>}            │                                                                             │
+│ │           no_update = False                                                                      │                                                                             │
+│ │             options = {}                                                                         │                                                                             │
+│ │                self = <briefcase.platforms.macOS.app.macOSAppBuildCommand object at 0x1036bc4a0> │                                                                             │
+│ │               state = None                                                                       │                                                                             │
+│ │           test_mode = False                                                                      │                                                                             │
+│ │              update = True                                                                       │                                                                             │
+│ │ update_requirements = False                                                                      │                                                                             │
+│ │    update_resources = False                                                                      │                                                                             │
+│ │         update_stub = False                                                                      │                                                                             │
+│ │      update_support = False                                                                      │                                                                             │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯                                                                             │
+│                                                                                                                                                                                  │
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/commands/build.py:90 in _build_app                                                        │
+│                                                                                                                                                                                  │
+│    87 │   │                                                                                                                                                                      │
+│    88 │   │   self.verify_app(app)                                                                                                                                               │
+│    89 │   │                                                                                                                                                                      │
+│ ❱  90 │   │   state = self.build_app(app, **full_options(state, options))                                                                                                        │
+│    91 │   │                                                                                                                                                                      │
+│    92 │   │   qualifier = " (test mode)" if app.test_mode else ""                                                                                                                │
+│    93 │   │   self.console.info(                                                                                                                                                 │
+│                                                                                                                                                                                  │
+│ ╭───────────────────────────────────────────── locals ─────────────────────────────────────────────╮                                                                             │
+│ │                 app = <org.tablemutant.tablemutant v0.1.0 AppConfig>                             │                                                                             │
+│ │           no_update = False                                                                      │                                                                             │
+│ │             options = {}                                                                         │                                                                             │
+│ │                self = <briefcase.platforms.macOS.app.macOSAppBuildCommand object at 0x1036bc4a0> │                                                                             │
+│ │               state = None                                                                       │                                                                             │
+│ │              update = True                                                                       │                                                                             │
+│ │ update_requirements = False                                                                      │                                                                             │
+│ │    update_resources = False                                                                      │                                                                             │
+│ │         update_stub = False                                                                      │                                                                             │
+│ │      update_support = False                                                                      │                                                                             │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯                                                                             │
+│                                                                                                                                                                                  │
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/platforms/macOS/app.py:141 in build_app                                                   │
+│                                                                                                                                                                                  │
+│   138 │   │   # the build is being done as part of a package command.                                                                                                            │
+│   139 │   │   if "adhoc_sign" not in kwargs:                                                                                                                                     │
+│   140 │   │   │   self.console.info("Ad-hoc signing app...", prefix=app.app_name)                                                                                                │
+│ ❱ 141 │   │   │   self.sign_app(app=app, identity=SigningIdentity())                                                                                                             │
+│   142                                                                                                                                                                            │
+│   143                                                                                                                                                                            │
+│   144 class macOSAppRunCommand(macOSRunMixin, macOSAppMixin, RunCommand):                                                                                                        │
+│                                                                                                                                                                                  │
+│ ╭─────────────────────────────────────────────────────────────── locals ────────────────────────────────────────────────────────────────╮                                        │
+│ │          app = <org.tablemutant.tablemutant v0.1.0 AppConfig>                                                                         │                                        │
+│ │       kwargs = {}                                                                                                                     │                                        │
+│ │         self = <briefcase.platforms.macOS.app.macOSAppBuildCommand object at 0x1036bc4a0>                                             │                                        │
+│ │ unbuilt_path = PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/MacOS/Stub') │                                        │
+│ ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯                                        │
+│                                                                                                                                                                                  │
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/platforms/macOS/__init__.py:819 in sign_app                                               │
+│                                                                                                                                                                                  │
+│    816 │   │   │   │   │   │   │   identity=identity,                                                                                                                            │
+│    817 │   │   │   │   │   │   )                                                                                                                                                 │
+│    818 │   │   │   │   │   │   futures.append(future)                                                                                                                            │
+│ ❱  819 │   │   │   │   │   for future in concurrent.futures.as_completed(futures):                                                                                               │
+│    820 │   │   │   │   │   │   progress_bar.update(task_id, advance=1)                                                                                                           │
+│    821 │   │   │   │   │   │   if future.exception():                                                                                                                            │
+│    822 │   │   │   │   │   │   │   raise future.exception()                                                                                                                      │
+│                                                                                                                                                                                  │
+│ ╭─────────────────────────────────────────────────────────────────────────────────── locals ───────────────────────────────────────────────────────────────────────────────────╮ │
+│ │             app = <org.tablemutant.tablemutant v0.1.0 AppConfig>                                                                                                             │ │
+│ │     bundle_path = PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app')                                                         │ │
+│ │        executor = <concurrent.futures.thread.ThreadPoolExecutor object at 0x1038029c0>                                                                                       │ │
+│ │          folder = PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Frameworks')                                     │ │
+│ │ frameworks_path = PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Frameworks')                                     │ │
+│ │          future = <Future at 0x103afc290 state=finished returned NoneType>                                                                                                   │ │
+│ │         futures = [                                                                                                                                                          │ │
+│ │                   │   <Future at 0x103b1c440 state=finished returned NoneType>,                                                                                              │ │
+│ │                   │   <Future at 0x103b1fa40 state=finished returned NoneType>,                                                                                              │ │
+│ │                   │   <Future at 0x103afc290 state=finished returned NoneType>,                                                                                              │ │
+│ │                   │   <Future at 0x103aef020 state=finished returned NoneType>,                                                                                              │ │
+│ │                   │   <Future at 0x103aec080 state=finished returned NoneType>                                                                                               │ │
+│ │                   ]                                                                                                                                                          │ │
+│ │           group = <itertools._grouper object at 0x1038824d0>                                                                                                                 │ │
+│ │        identity = <AdhocSigningIdentity>                                                                                                                                     │ │
+│ │            path = PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/sqlalchemy/cyextension/c… │ │
+│ │    progress_bar = <rich.progress.Progress object at 0x10392b260>                                                                                                             │ │
+│ │  resources_path = PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources')                                      │ │
+│ │            self = <briefcase.platforms.macOS.app.macOSAppBuildCommand object at 0x1036bc4a0>                                                                                 │ │
+│ │    sign_targets = [                                                                                                                                                          │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/ujson.cpython-312-darwin… │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/aiohttp/_http_writer.cpy… │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/aiohttp/_http_parser.cpy… │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/tokenizers/tokenizers.ab… │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/markupsafe/_speedups.cpy… │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/hf_xet/hf_xet.abi3.so'),  │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/rpds/rpds.cpython-312-da… │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/propcache/_helpers_c.cpy… │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/frozenlist/_frozenlist.c… │ │
+│ │                   │                                                                                                                                                          │ │
+│ │                   PosixPath('/Users/lila/Projects/Code/otr/tablemutant/build/tablemutant/macos/app/TableMutant.app/Contents/Resources/app_packages/torch/_C.cpython-312-dar… │ │
+│ │                   │   ... +444                                                                                                                                               │ │
+│ │                   ]                                                                                                                                                          │ │
+│ │         task_id = 0                                                                                                                                                          │ │
+│ ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │
+│                                                                                                                                                                                  │
+│ /Users/lila/.asdf/installs/python/3.12.3/lib/python3.12/concurrent/futures/_base.py:243 in as_completed                                                                          │
+│                                                                                                                                                                                  │
+│   240 │   │   │   │   │   │   │   '%d (of %d) futures unfinished' % (                                                                                                            │
+│   241 │   │   │   │   │   │   │   len(pending), total_futures))                                                                                                                  │
+│   242 │   │   │                                                                                                                                                                  │
+│ ❱ 243 │   │   │   waiter.event.wait(wait_timeout)                                                                                                                                │
+│   244 │   │   │                                                                                                                                                                  │
+│   245 │   │   │   with waiter.lock:                                                                                                                                              │
+│   246 │   │   │   │   finished = waiter.finished_futures                                                                                                                         │
+│                                                                                                                                                                                  │
+│ ╭────────────────────────────────────── locals ───────────────────────────────────────╮                                                                                          │
+│ │             f = <Future at 0x103aec080 state=finished returned NoneType>            │                                                                                          │
+│ │      finished = []                                                                  │                                                                                          │
+│ │            fs = {<Future at 0x103aec080 state=finished returned NoneType>}          │                                                                                          │
+│ │       pending = {<Future at 0x103aec080 state=finished returned NoneType>}          │                                                                                          │
+│ │       timeout = None                                                                │                                                                                          │
+│ │ total_futures = 5                                                                   │                                                                                          │
+│ │  wait_timeout = None                                                                │                                                                                          │
+│ │        waiter = <concurrent.futures._base._AsCompletedWaiter object at 0x103b606e0> │                                                                                          │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────╯                                                                                          │
+│                                                                                                                                                                                  │
+│ /Users/lila/.asdf/installs/python/3.12.3/lib/python3.12/threading.py:655 in wait                                                                                                 │
+│                                                                                                                                                                                  │
+│    652 │   │   with self._cond:                                                                 ╭───────────────────── locals ─────────────────────╮                             │
+│    653 │   │   │   signaled = self._flag                                                        │     self = <threading.Event at 0x103b623f0: set> │                             │
+│    654 │   │   │   if not signaled:                                                             │ signaled = False                                 │                             │
+│ ❱  655 │   │   │   │   signaled = self._cond.wait(timeout)                                      │  timeout = None                                  │                             │
+│    656 │   │   │   return signaled                                                              ╰──────────────────────────────────────────────────╯                             │
+│    657                                                                                                                                                                           │
+│    658                                                                                                                                                                           │
+│                                                                                                                                                                                  │
+│ /Users/lila/.asdf/installs/python/3.12.3/lib/python3.12/threading.py:355 in wait                                                                                                 │
+│                                                                                                                                                                                  │
+│    352 │   │   gotit = False                                                                    ╭────────────────────────────────── locals ───────────────────────────────────╮  │
+│    353 │   │   try:    # restore state no matter what (e.g., KeyboardInterrupt)                 │       gotit = False                                                         │  │
+│    354 │   │   │   if timeout is None:                                                          │ saved_state = None                                                          │  │
+│ ❱  355 │   │   │   │   waiter.acquire()                                                         │        self = <Condition(<unlocked _thread.lock object at 0x103acfbc0>, 0)> │  │
+│    356 │   │   │   │   gotit = True                                                             │     timeout = None                                                          │  │
+│    357 │   │   │   else:                                                                        │      waiter = <unlocked _thread.lock object at 0x1035f8f80>                 │  │
+│    358 │   │   │   │   if timeout > 0:                                                          ╰─────────────────────────────────────────────────────────────────────────────╯  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+KeyboardInterrupt

@@ -40,55 +40,55 @@ class EmbeddingProgressWindow:
             resizable=False
         )
         
-        self.progress_box = toga.Box(style=Pack(direction=COLUMN, padding=20))
+        self.progress_box = toga.Box(style=Pack(direction=COLUMN, margin=20))
         
         # Title
         title = toga.Label(
             "Generating Document Embeddings",
-            style=Pack(padding=(0, 0, 20, 0), font_size=16, font_weight='bold')
+            style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
         
         # Filename
         self.filename_label = toga.Label(
             f"Processing: {filename}",
-            style=Pack(padding=(0, 0, 15, 0), font_size=12)
+            style=Pack(margin=(0, 0, 15, 0), font_size=12)
         )
         
         # Status
         self.status_label = toga.Label(
             "Initializing...",
-            style=Pack(padding=(0, 0, 10, 0))
+            style=Pack(margin=(0, 0, 10, 0))
         )
         
         # Progress bar
         self.progress_bar = toga.ProgressBar(
             max=100,
-            style=Pack(width=450, padding=(0, 0, 10, 0))
+            style=Pack(width=450, margin=(0, 0, 10, 0))
         )
         
         # Batch information
         self.batch_info_label = toga.Label(
             "Batches: 0/0",
-            style=Pack(padding=(0, 0, 5, 0), font_size=10)
+            style=Pack(margin=(0, 0, 5, 0), font_size=10)
         )
         
         # ETA information
         self.eta_label = toga.Label(
             "ETA: Calculating...",
-            style=Pack(padding=(0, 0, 5, 0), font_size=10)
+            style=Pack(margin=(0, 0, 5, 0), font_size=10)
         )
         
         # Speed information
         self.speed_label = toga.Label(
             "Speed: -- batches/sec",
-            style=Pack(padding=(0, 0, 15, 0), font_size=10)
+            style=Pack(margin=(0, 0, 15, 0), font_size=10)
         )
         
         # Cancel button
         self.cancel_button = toga.Button(
             "Cancel",
             on_press=self.cancel_embedding,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         
         self.progress_box.add(title)

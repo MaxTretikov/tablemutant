@@ -6,8 +6,12 @@ SettingsManager - Handles application settings persistence
 import json
 import os
 import platform
+import logging
 from pathlib import Path
 from typing import Dict, Any
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.core.settings_manager')
 
 
 class SettingsManager:
@@ -18,6 +22,7 @@ class SettingsManager:
     def get_models_dir(self) -> Path:
         """Get the appropriate models directory based on the platform."""
         system = platform.system()
+        logger.debug("get_models_dir system: %s", system)
         
         if system == "Linux":
             models_dir = Path.home() / '.tablemutant' / 'models'
@@ -29,13 +34,14 @@ class SettingsManager:
             # Fallback to home directory
             models_dir = Path.home() / '.tablemutant' / 'models'
         
+        logger.debug("get_models_dir returning: %s", models_dir)
         # Create directory if it doesn't exist
         models_dir.mkdir(parents=True, exist_ok=True)
         return models_dir
     
     def get_default_settings(self) -> Dict[str, Any]:
         """Return default settings."""
-        return {
+        default_settings = {
             "model": "unsloth/medgemma-27b-text-it-GGUF",
             "models_directory": str(self.get_models_dir()),
             # New settings: default to local server endpoint
@@ -46,6 +52,8 @@ class SettingsManager:
             "temperature": 0.7,
             "max_tokens": 2048
         }
+        logger.debug("get_default_settings returning: %s", default_settings)
+        return default_settings
     
     def load_settings(self) -> Dict[str, Any]:
         """Load settings from file or create default settings."""
@@ -71,6 +79,7 @@ class SettingsManager:
 
                     # Persist any migrated keys
                     self.save_settings(default_settings)
+                    logger.debug("Loaded settings with migration: %s", default_settings)
                     return default_settings
             except Exception as e:
                 print(f"Error loading settings: {e}")
@@ -79,6 +88,7 @@ class SettingsManager:
             # Create default settings file
             default_settings = self.get_default_settings()
             self.save_settings(default_settings)
+            logger.debug("Created default settings: %s", default_settings)
             return default_settings
     
     def save_settings(self, settings: Dict[str, Any]):
@@ -92,7 +102,9 @@ class SettingsManager:
     
     def get(self, key: str, default=None):
         """Get a setting value."""
-        return self.settings.get(key, default)
+        value = self.settings.get(key, default)
+        logger.debug("SettingsManager.get('%s') -> %s", key, value)
+        return value
     
     def set(self, key: str, value: Any):
         """Set a setting value."""

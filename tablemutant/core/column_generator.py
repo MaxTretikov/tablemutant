@@ -4,10 +4,14 @@ ColumnGenerator - Handles DSPy setup and column generation
 """
 
 import json
+import logging
 from typing import List, Optional
 import polars as pl
 import dspy
 from tqdm import tqdm
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.core.column_generator')
 
 
 class ColumnGenerator:
@@ -16,12 +20,17 @@ class ColumnGenerator:
     
     def setup_dspy(self, temperature=0.7, max_tokens=2048, server_host: str = "http://localhost:8000", api_key: str = ""):
         """Configure DSPy to use an OpenAI-compatible API at server_host with optional api_key."""
+        logger.debug(
+            "setup_dspy temperature: %s, max_tokens: %s, server_host: %s, api_key: %s",
+            temperature, max_tokens, server_host, '*' * len(api_key) if api_key else ''
+        )
         import dspy
-
+        
         base = (server_host or "http://localhost:8000").rstrip('/')
         api_base = f"{base}/v1"
         key = api_key if api_key else "dummy"  # llamafile ignores key; remote may require it
-
+        logger.debug("setup_dspy base: %s, api_base: %s", base, api_base)
+        
         self.lm = dspy.LM(
             model='openai/local-model',
             api_base=api_base,

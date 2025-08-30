@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 license = { file = "LICENSE" }
 dependencies = [
     "aiohttp",
+    "chardet",
     "dspy",
     "huggingface_hub",
     "numpy",
@@ -36,7 +37,7 @@ version = "0.1.0"
 description = "Generate new columns in datasets using LLMs"
 sources = ["tablemutant"]
 # Keep runtime framework minimal; app deps are in [project.dependencies]
-requires = ["toga>=0.4.7"]
+requires = ["toga>=0.4.7", "std-nslog"]
 # Entry point: module:function for the app startup
 entry_point = "tablemutant.__main__:main"
 
@@ -69,8 +70,3 @@ icon = "resources/icons/ios"
 [tool.briefcase.app.tablemutant.android]
 requires = ["toga-android>=0.4.7"]
 icon = "resources/icons/android"
-
-[dependency-groups]
-dev = [
-    "briefcase>=0.3.24",
-]

@@ -3,10 +3,14 @@
 TableProcessor - Handles table loading, encoding detection, and saving operations
 """
 
+import logging
 import os
 from typing import List, Optional
 import chardet
 import polars as pl
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.core.table_processor')
 
 
 class TableProcessor:
@@ -23,7 +27,7 @@ class TableProcessor:
             encoding = result['encoding']
             confidence = result['confidence']
             
-            print(f"Detected encoding: {encoding} (confidence: {confidence:.2f})")
+            logger.debug("Detected encoding: %s (confidence: %.2f)", encoding, confidence)
             
             # If confidence is low, try some common encodings
             if confidence < 0.7:
@@ -60,7 +64,7 @@ class TableProcessor:
                 # Return the most common delimiter
                 best_delimiter = max(delimiter_counts, key=delimiter_counts.get)
                 if delimiter_counts[best_delimiter] > 0:
-                    print(f"Detected delimiter: '{best_delimiter}'")
+                    logger.debug("Detected delimiter: '%s'", best_delimiter)
                     return best_delimiter
                 
                 return ','  # Default to comma
@@ -148,7 +152,7 @@ class TableProcessor:
                         
                 except Exception as e:
                     if attempt < 2:
-                        print(f"Attempt {attempt + 1} failed: {e}")
+                        logger.debug("Attempt %d failed: %s", attempt + 1, e)
                         continue
                     else:
                         raise RuntimeError(f"Failed to load table after all attempts: {e}")
@@ -240,7 +244,7 @@ class TableProcessor:
                     output_path += '.csv'
                 df.write_csv(output_path, encoding='utf-8-sig')
         except Exception as e:
-            print(f"Error saving with UTF-8, trying latin-1: {e}")
+            logger.debug("Error saving with UTF-8, trying latin-1: %s", e)
             # Fallback to latin-1 for maximum compatibility
             if output_path.endswith('.csv') or not output_path.endswith(('.parquet', '.json')):
                 df.write_csv(output_path, encoding='latin-1') 

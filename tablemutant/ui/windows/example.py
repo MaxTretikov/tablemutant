@@ -37,12 +37,12 @@ class ExampleWindow:
     
     def create_content(self):
         """Create and return the example window content."""
-        container = toga.Box(style=Pack(direction=COLUMN, padding=20))
+        container = toga.Box(style=Pack(direction=COLUMN, margin=20))
         
         # Title
         title = toga.Label(
             "Add Example for Output Column",
-            style=Pack(padding=(0, 0, 20, 0), font_size=16, font_weight='bold')
+            style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
         
         # Get column headers for this definition
@@ -52,14 +52,14 @@ class ExampleWindow:
         # Instructions
         instructions = toga.Label(
             f"Below are the values from row {self.current_row_number} of your source columns. Enter what {output_column_name} should contain for this example:",
-            style=Pack(padding=(0, 0, 15, 0), text_align='left')
+            style=Pack(margin=(0, 0, 15, 0), text_align='left')
         )
         
         # Main horizontal layout
-        main_horizontal_section = toga.Box(style=Pack(direction=ROW, padding=(0, 0, 20, 0)))
+        main_horizontal_section = toga.Box(style=Pack(direction=ROW, margin=(0, 0, 20, 0)))
         
         # Source columns section (left side)
-        source_section = toga.Box(style=Pack(direction=COLUMN, padding=(0, 10, 0, 0), flex=1))
+        source_section = toga.Box(style=Pack(direction=COLUMN, margin=(0, 10, 0, 0), flex=1))
         
         # Build column header information
         column_info_parts = []
@@ -72,7 +72,7 @@ class ExampleWindow:
         
         source_label = toga.Label(
             f"'{column_info}' value for row {self.current_row_number}:",
-            style=Pack(padding=(0, 0, 10, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 10, 0), font_weight='bold')
         )
         source_section.add(source_label)
         
@@ -97,7 +97,7 @@ class ExampleWindow:
         source_data_input = toga.MultilineTextInput(
             value=source_data_text,
             readonly=True,
-            style=Pack(width=500, height=200, padding=(0, 0, 10, 0))
+            style=Pack(width=500, height=200, margin=(0, 0, 10, 0))
         )
         
         source_section.add(source_data_input)
@@ -112,7 +112,7 @@ class ExampleWindow:
             
             document_label = toga.Label(
                 doc_label_text,
-                style=Pack(padding=(10, 0, 10, 0), font_weight='bold')
+                style=Pack(margin=(10, 0, 10, 0), font_weight='bold')
             )
             source_section.add(document_label)
             
@@ -147,14 +147,14 @@ class ExampleWindow:
             self.document_input = toga.MultilineTextInput(
                 placeholder="What should I have retrieved?",
                 value=existing_document_input,
-                style=Pack(width=500, height=100, padding=(0, 0, 10, 0))
+                style=Pack(width=500, height=100, margin=(0, 0, 10, 0))
             )
             source_section.add(self.document_input)
         else:
             self.document_input = None
         
         # Arrow pointing to output (center)
-        arrow_section = toga.Box(style=Pack(direction=COLUMN, padding=(20, 20, 20, 20)))
+        arrow_section = toga.Box(style=Pack(direction=COLUMN, margin=(20, 20, 20, 20)))
         arrow_section.add(toga.Box(style=Pack(flex=1)))  # Center the arrow vertically
         arrow_label = toga.Label(
             "→",
@@ -164,10 +164,10 @@ class ExampleWindow:
         arrow_section.add(toga.Box(style=Pack(flex=1)))  # Center the arrow vertically
         
         # Output section (right side)
-        output_section = toga.Box(style=Pack(direction=COLUMN, padding=(0, 0, 0, 10), flex=1))
+        output_section = toga.Box(style=Pack(direction=COLUMN, margin=(0, 0, 0, 10), flex=1))
         output_label = toga.Label(
             f"Expected output for {output_column_name}:",
-            style=Pack(padding=(0, 0, 10, 0), font_weight='bold')
+            style=Pack(margin=(0, 0, 10, 0), font_weight='bold')
         )
         
         # Get existing example if any
@@ -184,7 +184,7 @@ class ExampleWindow:
         self.example_input = toga.MultilineTextInput(
             placeholder=f"Enter what {output_column_name} should contain for this example...",
             value=existing_example,
-            style=Pack(width=500, height=300, padding=(0, 0, 10, 0))
+            style=Pack(width=500, height=300, margin=(0, 0, 10, 0))
         )
         
         output_section.add(output_label)
@@ -196,18 +196,18 @@ class ExampleWindow:
         main_horizontal_section.add(output_section)
         
         # Buttons
-        button_section = toga.Box(style=Pack(direction=ROW, padding=(20, 0, 0, 0)))
+        button_section = toga.Box(style=Pack(direction=ROW, margin=(20, 0, 0, 0)))
         
         cancel_button = toga.Button(
             "Cancel",
             on_press=self.cancel_example,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         
         save_button = toga.Button(
             "Save Example",
             on_press=self.save_example,
-            style=Pack(padding=5)
+            style=Pack(margin=5)
         )
         
         button_section.add(cancel_button)

@@ -6,9 +6,26 @@ TableMutant Main Entry Point - Checks for CLI args and launches GUI if none prov
 import argparse
 import sys
 import os
+import logging
 
 # Add the current directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+def setup_logging(log_level='INFO'):
+    """Setup logging configuration with the specified log level."""
+    # Convert string level to logging constant
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+    
+    # Configure logging
+    logging.basicConfig(
+        level=numeric_level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Create logger for tablemutant
+    logger = logging.getLogger('tablemutant')
+    return logger
 
 def main():
     parser = argparse.ArgumentParser(
@@ -49,8 +66,16 @@ Examples:
                         help='Number of rows to process (default: all rows)')
     parser.add_argument('--gui', action='store_true',
                         help='Force launch GUI mode')
+    parser.add_argument('--log-level', '-l',
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                        default='INFO',
+                        help='Set the logging level (default: INFO)')
     
-    args = parser.parse_args()
+    # Use parse_known_args to tolerate interpreter/launcher flags (e.g., -B, -I)
+    args, _unknown = parser.parse_known_args()
+    
+    # Setup logging with the specified level
+    setup_logging(args.log_level)
     
     # Check if we should run in GUI mode
     if args.gui or not (args.model and args.table and args.instructions):
@@ -58,6 +83,10 @@ Examples:
         try:
             import toga
             from tablemutant.ui import TableMutantGUI
+            
+            # Setup logging for GUI mode (default to INFO level)
+            if not hasattr(args, 'log_level') or not args.log_level:
+                setup_logging('INFO')
             
             app = TableMutantGUI('TableMutant', 'org.tablemutant.gui')
             return app.main_loop()
