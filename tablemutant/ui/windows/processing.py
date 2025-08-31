@@ -8,7 +8,6 @@ import json
 import os
 import threading
 import time
-import urllib.request
 import logging
 from datetime import timedelta
 from concurrent.futures import ThreadPoolExecutor
@@ -19,6 +18,8 @@ from toga.style import Pack
 from toga.style.pack import COLUMN
 import dspy
 import polars as pl
+
+from tablemutant.core.tls_config import get_http_client
 
 # Get logger for this module
 logger = logging.getLogger('tablemutant.ui.windows.processing')
@@ -194,9 +195,9 @@ class ProcessingWindow:
             )
             
             # Check if server is already running at configured host
-            server_host = self.app.settings_manager.get('server_host', 'http://localhost:8000')
+            server_host = self.app.settings_manager.get('server_host')
             logger.debug("Checking server at %s", server_host)
-            auth_token = self.app.settings_manager.get('auth_token', '')
+            auth_token = self.app.settings_manager.get('auth_token')
             models_url = (server_host.rstrip('/')) + '/v1/models'
             logger.debug("Models URL: %s", models_url)
 
@@ -210,11 +211,12 @@ class ProcessingWindow:
                 except Exception:
                     return True
 
-            req = urllib.request.Request(models_url)
+            headers = {}
             if not _is_local(server_host) and auth_token:
-                req.add_header('Authorization', f'Bearer {auth_token}')
+                headers['Authorization'] = f'Bearer {auth_token}'
             try:
-                with urllib.request.urlopen(req, timeout=2) as response:
+                http_client = get_http_client()
+                with http_client.urlopen(models_url, timeout=2, headers=headers) as response:
                     if response.status == 200:
                         status_txt = "Server already running!" if not _is_local(server_host) else "Llamafile server already running!"
                         await self.update_progress(40, status_txt)
@@ -233,7 +235,7 @@ class ProcessingWindow:
                     await self.update_progress(50, "DSPy configuration complete!")
                 except Exception as e:
                     # If DSPy configuration fails due to thread conflicts, try to reset and reconfigure
-                    print(f"Initial DSPy configuration failed: {e}")
+                    logger.warning("Initial DSPy configuration failed: %s", e)
                     await self.update_progress(46, "Retrying DSPy configuration...")
                     try:
                         # Create a fresh column generator instance to avoid thread conflicts
@@ -246,7 +248,7 @@ class ProcessingWindow:
             
             if not self.app.server_was_running:
                 # If host is local, we will start llamafile. If remote, skip starting server.
-                server_host = self.app.settings_manager.get('server_host', 'http://localhost:8000')
+                server_host = self.app.settings_manager.get('server_host')
                 logger.debug("Processing server_host: %s", server_host)
                 
                 def _is_local(url: str) -> bool:
@@ -261,7 +263,7 @@ class ProcessingWindow:
                         logger.debug("_is_local failed with error: %s", e)
                         return True
 
-                server_host = self.app.settings_manager.get('server_host', 'http://localhost:8000')
+                server_host = self.app.settings_manager.get('server_host')
                 if _is_local(server_host):
                     await self.update_progress(20, "Setting up model and local server...")
                     
@@ -291,7 +293,7 @@ class ProcessingWindow:
                     await self.update_progress(50, "DSPy configuration complete!")
                 except Exception as e:
                     # If DSPy configuration fails due to thread conflicts, try to reset and reconfigure
-                    print(f"Initial DSPy configuration failed: {e}")
+                    logger.warning("Initial DSPy configuration failed: %s", e)
                     await self.update_progress(46, "Retrying DSPy configuration...")
                     try:
                         # Create a fresh column generator instance to avoid thread conflicts
@@ -341,7 +343,7 @@ class ProcessingWindow:
                         
                         if cached_result:
                             text_chunks, embeddings, metadata = cached_result
-                            print(f"Using cached embeddings for {os.path.basename(doc_path)} ({len(text_chunks)} chunks)")
+                            logger.info("Using cached embeddings for %s (%s chunks)", os.path.basename(doc_path), len(text_chunks))
                             
                             # Store embedding data for semantic search
                             rag_embeddings_data.append({
@@ -352,7 +354,7 @@ class ProcessingWindow:
                             })
                         else:
                             # Fallback: load raw text and create simple chunks
-                            print(f"No cached embeddings found for {os.path.basename(doc_path)}, using raw text")
+                            logger.info("No cached embeddings found for %s, using raw text", os.path.basename(doc_path))
                             doc_text = await loop.run_in_executor(
                                 self.executor,
                                 self.app.tm.rag_processor.load_rag_source,
@@ -371,14 +373,14 @@ class ProcessingWindow:
                                 })
                                 
                     except Exception as e:
-                        print(f"Error loading RAG document {doc_path}: {e}")
+                        logger.error("Error loading RAG document %s: %s", doc_path, e)
                     
                 # Log embedding usage
                 if rag_embeddings_data:
                     total_chunks = sum(len(data['chunks']) for data in rag_embeddings_data)
                     embedded_docs = sum(1 for data in rag_embeddings_data if data['embeddings'] is not None)
-                    print(f"Loaded {len(rag_embeddings_data)} documents with {total_chunks} total chunks")
-                    print(f"{embedded_docs} documents have embeddings for semantic search")
+                    logger.info("Loaded %s documents with %s total chunks", len(rag_embeddings_data), total_chunks)
+                    logger.info("%s documents have embeddings for semantic search", embedded_docs)
             
             # Process each definition
             all_new_columns = {}
@@ -524,9 +526,10 @@ class ProcessingWindow:
                             
                             if unique_chunks:
                                 rag_context = "\n\nRelevant context from documents:\n" + "\n".join(unique_chunks)
-                                print(f"Using {len(unique_chunks)} relevant chunks for row {row_idx + 1} (from {len(all_relevant_chunks)} total matches)")
+                                logger.debug("Using %s relevant chunks for row %s (from %s total matches)",
+                                           len(unique_chunks), row_idx + 1, len(all_relevant_chunks))
                             else:
-                                print(f"No relevant chunks found for row {row_idx + 1}")
+                                logger.debug("No relevant chunks found for row %s", row_idx + 1)
                         
                         # Prepare generation inputs
                         generation_inputs = {
@@ -592,7 +595,7 @@ class ProcessingWindow:
                             
                             return result.new_value
                         except Exception as e:
-                            print(f"Generation error: {e}")
+                            logger.error("Generation error: %s", e)
                             return f"Error: {str(e)[:50]}..."
                     
                     # Prepare generation inputs for prompt display (using per-line semantic search)
@@ -835,7 +838,7 @@ class ProcessingWindow:
             return tokens_per_sec
             
         except Exception as e:
-            print(f"Calibration failed: {e}")
+            logger.error("Calibration failed: %s", e)
             import traceback
             traceback.print_exc()
             return 0  # Return 0 if calibration fails

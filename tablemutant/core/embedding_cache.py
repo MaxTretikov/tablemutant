@@ -8,9 +8,13 @@ import json
 import os
 import pickle
 import platform
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import numpy as np
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.core.embedding_cache')
 
 
 class EmbeddingCache:
@@ -43,7 +47,7 @@ class EmbeddingCache:
                     hash_sha256.update(chunk)
             return hash_sha256.hexdigest()
         except Exception as e:
-            print(f"Error calculating hash for {file_path}: {e}")
+            logger.error("Error calculating hash for %s: %s", file_path, e)
             return None
     
     def _get_cache_file_path(self, file_hash: str) -> Path:
@@ -94,11 +98,11 @@ class EmbeddingCache:
             text_chunks = cached_data.get('text_chunks', [])
             embeddings = cached_data.get('embeddings', np.array([]))
             
-            print(f"Loaded cached embeddings for {os.path.basename(file_path)} ({len(text_chunks)} chunks)")
+            logger.info("Loaded cached embeddings for %s (%s chunks)", os.path.basename(file_path), len(text_chunks))
             return text_chunks, embeddings, metadata
             
         except Exception as e:
-            print(f"Error loading cached embeddings for {file_path}: {e}")
+            logger.error("Error loading cached embeddings for %s: %s", file_path, e)
             # Clean up corrupted cache files
             try:
                 cache_file.unlink(missing_ok=True)
@@ -156,11 +160,11 @@ class EmbeddingCache:
             with open(meta_file, 'w') as f:
                 json.dump(metadata, f, indent=2)
             
-            print(f"Cached embeddings for {os.path.basename(file_path)} ({len(text_chunks)} chunks)")
+            logger.info("Cached embeddings for %s (%s chunks)", os.path.basename(file_path), len(text_chunks))
             return True
             
         except Exception as e:
-            print(f"Error caching embeddings for {file_path}: {e}")
+            logger.error("Error caching embeddings for %s: %s", file_path, e)
             # Clean up partial files
             try:
                 cache_file.unlink(missing_ok=True)
@@ -176,10 +180,10 @@ class EmbeddingCache:
                 file.unlink()
             for file in self.cache_dir.glob("*_meta.json"):
                 file.unlink()
-            print("Embedding cache cleared")
+            logger.info("Embedding cache cleared")
             return True
         except Exception as e:
-            print(f"Error clearing cache: {e}")
+            logger.error("Error clearing cache: %s", e)
             return False
     
     def get_cache_info(self) -> Dict:
@@ -197,7 +201,7 @@ class EmbeddingCache:
                 'total_size_mb': round(total_size / (1024 * 1024), 2)
             }
         except Exception as e:
-            print(f"Error getting cache info: {e}")
+            logger.error("Error getting cache info: %s", e)
             return {
                 'cache_dir': str(self.cache_dir),
                 'num_cached_documents': 0,

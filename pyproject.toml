@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 license = { file = "LICENSE" }
 dependencies = [
     "aiohttp",
+    "certifi",
     "chardet",
     "dspy",
     "huggingface_hub",
@@ -18,6 +19,7 @@ dependencies = [
     "sentence-transformers",
     "toga",
     "tqdm",
+    "truststore",
 ]
 
 [tool.briefcase]

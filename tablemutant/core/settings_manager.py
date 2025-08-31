@@ -10,30 +10,49 @@ import logging
 from pathlib import Path
 from typing import Dict, Any
 
+from .tls_config import TLSConfig
+
 # Get logger for this module
 logger = logging.getLogger('tablemutant.core.settings_manager')
 
 
 class SettingsManager:
     def __init__(self):
-        self.settings_file = "settings.json"
+        # Use centralized TLS configuration
+        self._tls_config = TLSConfig()
+
+        # Place settings.json in the OS-specific application data directory
+        self.settings_file = self.get_app_base_dir() / "settings.json"
         self.settings = self.load_settings()
+    
+    @property
+    def ssl_context(self):
+        """Get the SSL context for compatibility."""
+        return self._tls_config.ssl_context
+    
+    @property
+    def tls_source(self):
+        """Get the TLS source for compatibility."""
+        return self._tls_config.tls_source
+    
+    def get_app_base_dir(self) -> Path:
+        """Get the OS-specific base directory for TableMutant application data."""
+        system = platform.system()
+        logger.debug("get_app_base_dir system: %s", system)
+        
+        if system == "Windows":
+            base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / "TableMutant"
+        elif system == "Darwin":  # macOS
+            base_dir = Path.home() / "Library" / "Application Support" / "TableMutant"
+        else:  # Linux and other Unix-like systems
+            base_dir = Path.home() / ".tablemutant"
+        
+        logger.debug("get_app_base_dir returning: %s", base_dir)
+        return base_dir
         
     def get_models_dir(self) -> Path:
         """Get the appropriate models directory based on the platform."""
-        system = platform.system()
-        logger.debug("get_models_dir system: %s", system)
-        
-        if system == "Linux":
-            models_dir = Path.home() / '.tablemutant' / 'models'
-        elif system == "Darwin":  # macOS
-            models_dir = Path.home() / 'Library' / 'Application Support' / 'TableMutant' / 'models'
-        elif system == "Windows":
-            models_dir = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local')) / 'TableMutant' / 'models'
-        else:
-            # Fallback to home directory
-            models_dir = Path.home() / '.tablemutant' / 'models'
-        
+        models_dir = self.get_app_base_dir() / 'models'
         logger.debug("get_models_dir returning: %s", models_dir)
         # Create directory if it doesn't exist
         models_dir.mkdir(parents=True, exist_ok=True)
@@ -44,10 +63,10 @@ class SettingsManager:
         default_settings = {
             "model": "unsloth/medgemma-27b-text-it-GGUF",
             "models_directory": str(self.get_models_dir()),
-            # New settings: default to local server endpoint
+            # Default to local server endpoint
             "server_host": "http://localhost:8000",
             "auth_token": "",
-            # Keep legacy key only for migration compatibility (not used by consumers anymore)
+            # Legacy key for migration compatibility
             "llamafile_port": 8000,
             "temperature": 0.7,
             "max_tokens": 2048
@@ -57,7 +76,10 @@ class SettingsManager:
     
     def load_settings(self) -> Dict[str, Any]:
         """Load settings from file or create default settings."""
-        if os.path.exists(self.settings_file):
+        # Ensure the base directory exists before trying to load settings
+        self.get_app_base_dir().mkdir(parents=True, exist_ok=True)
+        
+        if self.settings_file.exists():
             try:
                 with open(self.settings_file, 'r') as f:
                     loaded_settings = json.load(f)
@@ -82,7 +104,7 @@ class SettingsManager:
                     logger.debug("Loaded settings with migration: %s", default_settings)
                     return default_settings
             except Exception as e:
-                print(f"Error loading settings: {e}")
+                logger.error("Error loading settings: %s", e)
                 return self.get_default_settings()
         else:
             # Create default settings file
@@ -94,11 +116,13 @@ class SettingsManager:
     def save_settings(self, settings: Dict[str, Any]):
         """Save settings to file."""
         try:
+            # Ensure the base directory exists before saving
+            self.get_app_base_dir().mkdir(parents=True, exist_ok=True)
             with open(self.settings_file, 'w') as f:
                 json.dump(settings, f, indent=4)
             self.settings = settings
         except Exception as e:
-            print(f"Error saving settings: {e}")
+            logger.error("Error saving settings: %s", e)
     
     def get(self, key: str, default=None):
         """Get a setting value."""

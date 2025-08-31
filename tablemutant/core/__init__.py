@@ -13,6 +13,7 @@ from .table_processor import TableProcessor, HeaderProcessor
 from .column_generator import ColumnGenerator
 from .rag_processor import RAGProcessor
 from .embedding_cache import EmbeddingCache
+from .tls_config import get_http_client
 
 # Get logger for this module
 logger = logging.getLogger('tablemutant.core')
@@ -39,35 +40,35 @@ class TableMutant:
         """Main execution flow for CLI mode."""
         # Validate GGUF
         if not self.model_manager.validate_gguf(args.model):
-            print(f"Error: {args.model} is not a valid GGUF model identifier")
+            logger.error("Error: %s is not a valid GGUF model identifier", args.model)
             sys.exit(1)
         
         # Download model if needed
         self.model_manager.model_path = self.model_manager.download_model(args.model)
-        print(f"Using model: {self.model_manager.model_path}")
+        logger.info("Using model: %s", self.model_manager.model_path)
         
         # Load table data
-        print(f"Loading table from {args.table}")
+        logger.info("Loading table from %s", args.table)
         df = self.table_processor.load_table(args.table)
         
-        print(f"Loaded {len(df)} rows with columns: {df.columns}")
+        logger.info("Loaded %s rows with columns: %s", len(df), df.columns)
         
         # Parse column indices first to determine which columns to check for non-empty rows
         column_indices = self.table_processor.parse_column_indices(args.columns, len(df.columns))
         source_columns = [df.columns[i] for i in column_indices]
-        print(f"Using source columns: {source_columns}")
+        logger.info("Using source columns: %s", source_columns)
         
         # Count non-empty rows in the selected columns
         non_empty_count = self.table_processor.count_non_empty_rows(df, column_indices)
-        print(f"Found {non_empty_count} non-empty rows in selected columns")
+        logger.info("Found %s non-empty rows in selected columns", non_empty_count)
         
         # Limit rows if specified, but respect non-empty row count
         num_rows = args.rows if args.rows is not None else non_empty_count
         if num_rows > non_empty_count:
             num_rows = non_empty_count
-            print(f"Limiting to {num_rows} non-empty rows")
+            logger.info("Limiting to %s non-empty rows", num_rows)
         elif args.rows is not None:
-            print(f"Processing first {num_rows} non-empty rows")
+            logger.info("Processing first %s non-empty rows", num_rows)
         
         # Get only non-empty rows for processing
         df_to_process = self.get_non_empty_rows(df, column_indices, num_rows)
@@ -76,15 +77,15 @@ class TableMutant:
         # Load RAG source if provided
         rag_text = None
         if args.rag_source:
-            print(f"Loading RAG source from {args.rag_source}")
+            logger.info("Loading RAG source from %s", args.rag_source)
             
             # Try to use cached embeddings first
             if self.rag_processor.has_cached_embeddings(args.rag_source):
-                print("Using cached embeddings...")
+                logger.info("Using cached embeddings...")
                 cached_result = self.rag_processor.get_cached_embeddings(args.rag_source)
                 if cached_result:
                     text_chunks, embeddings, metadata = cached_result
-                    print(f"Loaded {len(text_chunks)} cached text chunks")
+                    logger.info("Loaded %s cached text chunks", len(text_chunks))
                     # For CLI mode, combine chunks into single text
                     rag_text = "\n\n".join(text_chunks)
                 else:
@@ -92,16 +93,16 @@ class TableMutant:
                     rag_text = self.rag_processor.load_rag_source(args.rag_source)
             else:
                 # Generate embeddings for future use
-                print("Generating embeddings for RAG document...")
+                logger.info("Generating embeddings for RAG document...")
                 result = self.rag_processor.generate_embeddings(args.rag_source)
                 if result:
                     text_chunks, embeddings = result
-                    print(f"Generated embeddings for {len(text_chunks)} text chunks")
+                    logger.info("Generated embeddings for %s text chunks", len(text_chunks))
                     # Use the chunked text
                     rag_text = "\n\n".join(text_chunks)
                 else:
                     # Fallback to raw text loading
-                    print("Embedding generation failed, using raw text")
+                    logger.warning("Embedding generation failed, using raw text")
                     rag_text = self.rag_processor.load_rag_source(args.rag_source)
         
         # Download and start llamafile
@@ -172,7 +173,7 @@ class TableMutant:
             if not any(output_path.endswith(ext) for ext in ['.csv', '.parquet', '.json']):
                 output_path = args.table.rsplit('.', 1)[0] + '_mutated.' + args.table.rsplit('.', 1)[1]
             self.table_processor.save_table(df_final, output_path, new_column_name)
-            print(f"Saved mutated table to {output_path}")
+            logger.info("Saved mutated table to %s", output_path)
         else:
             # For stdout, only output the processed rows
             self.table_processor.save_table(df_to_process, output_path, new_column_name)
@@ -201,10 +202,10 @@ class TableMutant:
             self.model_manager.llamafile_path = self.model_manager.download_llamafile()
         
         # Determine server host and whether to start local llamafile
-        server_host = self.settings_manager.get('server_host', 'http://localhost:8000')
-        auth_token = self.settings_manager.get('auth_token', '')
-        temperature = self.settings_manager.get('temperature', 0.7)
-        max_tokens = self.settings_manager.get('max_tokens', 2048)
+        server_host = self.settings_manager.get('server_host')
+        auth_token = self.settings_manager.get('auth_token')
+        temperature = self.settings_manager.get('temperature')
+        max_tokens = self.settings_manager.get('max_tokens')
 
         def _is_local(url: str) -> bool:
             try:
@@ -267,7 +268,7 @@ class TableMutant:
             self.model_manager.llamafile_path = self.model_manager.download_llamafile()
         
         # Determine server host and whether to start local llamafile
-        server_host = self.settings_manager.get('server_host', 'http://localhost:8000')
+        server_host = self.settings_manager.get('server_host')
 
         def _is_local(url: str) -> bool:
             try:
@@ -316,10 +317,10 @@ class TableMutant:
     
     def setup_dspy_configuration(self):
         """Setup DSPy configuration (must be called from main thread)."""
-        temperature = self.settings_manager.get('temperature', 0.7)
-        max_tokens = self.settings_manager.get('max_tokens', 2048)
-        server_host = self.settings_manager.get('server_host', 'http://localhost:8000')
-        auth_token = self.settings_manager.get('auth_token', '')
+        temperature = self.settings_manager.get('temperature')
+        max_tokens = self.settings_manager.get('max_tokens')
+        server_host = self.settings_manager.get('server_host')
+        auth_token = self.settings_manager.get('auth_token')
         logger.debug("Setting up DSPy with server_host: %s", server_host)
         try:
             self.column_generator.setup_dspy(

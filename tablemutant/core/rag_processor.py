@@ -5,11 +5,15 @@ RAGProcessor - Handles RAG functionality for PDF loading, text extraction, and e
 
 import os
 import re
+import logging
 from typing import List, Optional, Tuple, Dict
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
 from .embedding_cache import EmbeddingCache
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.core.rag_processor')
 
 
 class RAGProcessor:
@@ -29,11 +33,11 @@ class RAGProcessor:
             elif file_ext in ['txt', 'md']:
                 return self._load_text_file(file_path)
             else:
-                print(f"Unsupported file type: {file_ext}")
+                logger.warning("Unsupported file type: %s", file_ext)
                 return None
                 
         except Exception as e:
-            print(f"Error reading file {file_path}: {e}")
+            logger.error("Error reading file %s: %s", file_path, e)
             return None
     
     def _load_pdf(self, pdf_path: str) -> Optional[str]:
@@ -49,7 +53,7 @@ class RAGProcessor:
                 
                 return text.strip()
         except ImportError:
-            print("PyPDF2 not installed. Install with: pip install PyPDF2")
+            logger.error("PyPDF2 not installed. Install with: pip install PyPDF2")
             return None
             
     def _load_text_file(self, file_path: str) -> Optional[str]:
@@ -76,15 +80,15 @@ class RAGProcessor:
                 
                 # Use a lightweight, fast model for embeddings
                 model_name = "all-MiniLM-L6-v2"  # Small, fast, good quality
-                print(f"Loading embedding model: {model_name}")
+                logger.info("Loading embedding model: %s", model_name)
                 self._embedding_model = self._sentence_transformers.SentenceTransformer(model_name)
-                print("Embedding model loaded successfully")
+                logger.info("Embedding model loaded successfully")
                 
             except ImportError:
-                print("sentence-transformers not installed. Install with: pip install sentence-transformers")
+                logger.error("sentence-transformers not installed. Install with: pip install sentence-transformers")
                 return None
             except Exception as e:
-                print(f"Error loading embedding model: {e}")
+                logger.error("Error loading embedding model: %s", e)
                 return None
         
         return self._embedding_model
@@ -165,7 +169,7 @@ class RAGProcessor:
         
         text = self.load_rag_source(file_path)
         if not text:
-            print(f"Failed to extract text from {file_path}")
+            logger.error("Failed to extract text from %s", file_path)
             return None
         
         if progress_callback:
@@ -174,7 +178,7 @@ class RAGProcessor:
         # Get embedding model
         model = self._get_embedding_model()
         if model is None:
-            print("Embedding model not available")
+            logger.error("Embedding model not available")
             return None
         
         try:
@@ -182,20 +186,20 @@ class RAGProcessor:
             if progress_callback:
                 progress_callback(30, "Chunking text...", None, None)
             
-            print(f"Chunking text from {os.path.basename(file_path)}...")
+            logger.info("Chunking text from %s...", os.path.basename(file_path))
             text_chunks = self._chunk_text(text)
             
             if not text_chunks:
-                print("No text chunks generated")
+                logger.warning("No text chunks generated")
                 return None
             
-            print(f"Generated {len(text_chunks)} text chunks")
+            logger.info("Generated %s text chunks", len(text_chunks))
             
             if progress_callback:
                 progress_callback(40, f"Generating embeddings for {len(text_chunks)} chunks...", None, None)
             
             # Generate embeddings with custom progress tracking
-            print("Generating embeddings...")
+            logger.info("Generating embeddings...")
             
             # Create a custom progress callback for sentence-transformers
             def embedding_progress_callback(current_batch, total_batches):
@@ -211,7 +215,7 @@ class RAGProcessor:
             if not isinstance(embeddings, np.ndarray):
                 embeddings = np.array(embeddings)
             
-            print(f"Generated embeddings with shape: {embeddings.shape}")
+            logger.info("Generated embeddings with shape: %s", embeddings.shape)
             
             if progress_callback:
                 progress_callback(95, "Caching embeddings...", None, None)
@@ -225,9 +229,9 @@ class RAGProcessor:
             
             success = self.embedding_cache.cache_embeddings(file_path, text_chunks, embeddings, metadata)
             if success:
-                print(f"Embeddings cached for {os.path.basename(file_path)}")
+                logger.info("Embeddings cached for %s", os.path.basename(file_path))
             else:
-                print(f"Failed to cache embeddings for {os.path.basename(file_path)}")
+                logger.warning("Failed to cache embeddings for %s", os.path.basename(file_path))
             
             if progress_callback:
                 progress_callback(100, "Complete!", None, None)
@@ -235,7 +239,7 @@ class RAGProcessor:
             return text_chunks, embeddings
             
         except Exception as e:
-            print(f"Error generating embeddings for {file_path}: {e}")
+            logger.error("Error generating embeddings for %s: %s", file_path, e)
             return None
     
     def _encode_with_progress(self, model, text_chunks, progress_callback=None):
@@ -261,7 +265,7 @@ class RAGProcessor:
             return np.array(all_embeddings)
             
         except Exception as e:
-            print(f"Error in batch encoding: {e}")
+            logger.error("Error in batch encoding: %s", e)
             # Fallback to original method
             return model.encode(text_chunks, show_progress_bar=True)
     
@@ -300,7 +304,7 @@ class RAGProcessor:
             # Get embedding model
             model = self._get_embedding_model()
             if model is None:
-                print("Embedding model not available for semantic search")
+                logger.error("Embedding model not available for semantic search")
                 return []
             
             # Generate embedding for the query
@@ -340,14 +344,14 @@ class RAGProcessor:
             # Return the most relevant chunks
             relevant_chunks = [all_chunks[i] for i in top_indices]
             
-            print(f"Found {len(relevant_chunks)} relevant chunks from {len(rag_embeddings_data)} documents")
+            logger.info("Found %s relevant chunks from %s documents", len(relevant_chunks), len(rag_embeddings_data))
             top_scores = [similarities[i] for i in top_indices[:5]]
-            print(f"Top similarity scores: {[f'{score:.3f}' for score in top_scores]}")
+            logger.debug("Top similarity scores: %s", [f'{score:.3f}' for score in top_scores])
             
             return relevant_chunks
             
         except Exception as e:
-            print(f"Error in semantic search: {e}")
+            logger.error("Error in semantic search: %s", e)
             # Fallback: return first few chunks from each document
             fallback_chunks = []
             for doc_data in rag_embeddings_data:

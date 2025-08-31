@@ -219,14 +219,14 @@ class TableProcessor:
         if not output_path:
             # Output only the new column to stdout
             if new_column_name and new_column_name in df.columns:
-                print("\n" + "="*50 + " OUTPUT " + "="*50)
+                logger.info("\n" + "="*50 + " OUTPUT " + "="*50)
                 for value in df[new_column_name]:
-                    print(value if value else "")
-                    print("---")
+                    logger.info("%s", value if value else "")
+                    logger.info("---")
             else:
                 # Fallback: output entire CSV
-                print("\n" + "="*50 + " OUTPUT " + "="*50)
-                print(df.write_csv(None))
+                logger.info("\n" + "="*50 + " OUTPUT " + "="*50)
+                logger.info("%s", df.write_csv(None))
             return
             
         try:

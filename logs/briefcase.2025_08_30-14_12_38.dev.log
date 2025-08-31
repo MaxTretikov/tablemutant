@@ -1,0 +1,251 @@
+Date/Time:       2025-08-30 14:12:38 
+Command line:    /Users/lila/Projects/Code/otr/tablemutant/.venv/bin/briefcase dev
+
+OS Release:      Darwin 24.5.0
+OS Version:      Darwin Kernel Version 24.5.0: Tue Apr 22 20:42:11 PDT 2025; root:xnu-11417.121.6~4/RELEASE_ARM64_T6031
+Architecture:    arm64
+Platform:        macOS-15.5-arm64-arm-64bit
+
+Python exe:      /Users/lila/Projects/Code/otr/tablemutant/.venv/bin/python3
+Python version:  3.12.3 (main, Jun 11 2024, 14:15:30) [Clang 15.0.0 (clang-1500.3.9.4)]
+Virtual env:     True
+Conda env:       False
+
+Briefcase:       0.3.24
+Target platform: macOS
+Target format:   None
+
+Environment Variables:
+	EDITOR=vim
+	HOME=/Users/lila
+	HOMEBREW_CELLAR=/opt/homebrew/Cellar
+	HOMEBREW_PREFIX=/opt/homebrew
+	HOMEBREW_REPOSITORY=/opt/homebrew
+	INFOPATH=/opt/homebrew/share/info:
+	LANG=en_US.UTF-8
+	LESS=-R
+	LOGNAME=lila
+	LSCOLORS=Gxfxcxdxbxegedabagacad
+	LS_COLORS=di=1;36:ln=35:so=32:pi=33:ex=31:bd=34;46:cd=34;43:su=30;41:sg=30;46:tw=30;42:ow=30;43
+	OLDPWD=/Users/lila/Projects/Code/otr
+	PAGER=less
+	PATH=/Users/lila/Projects/Code/otr/tablemutant/.venv/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/opt/homebrew/opt/libomp/bin:/opt/homebrew/opt/llvm/bin:/Users/lila/.bun/bin:/Users/lila/.asdf/shims:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Library/Apple/usr/bin:/Users/lila/.local/bin
+	PS1=(tablemutant) ${ret_status}%{$fg[blue]%}${PROMPT_HOST}%{$fg_bold[green]%} %{$fg_bold[yellow]%}%2~ ${vcs_info_msg_0_}${dir_status}%{$reset_color%} 
+	PWD=/Users/lila/Projects/Code/otr/tablemutant
+	SHELL=/bin/zsh
+	SHLVL=1
+	SSH_AUTH_SOCK=/private/tmp/com.apple.launchd.wErltMT3DR/Listeners
+	TERM=xterm-256color
+	TERM_PROGRAM=Apple_Terminal
+	TERM_PROGRAM_VERSION=455.1
+	TERM_SESSION_ID=6625A708-4C5F-49CB-A10B-4E12584B34DF
+	TMPDIR=/var/folders/rd/4ps353t10yb1b1dpfz5wbpj00000gn/T/
+	USER=lila
+	VIRTUAL_ENV=/Users/lila/Projects/Code/otr/tablemutant/.venv
+	VIRTUAL_ENV_PROMPT=(tablemutant) 
+	XPC_FLAGS=0x0
+	XPC_SERVICE_NAME=0
+	ZSH=/Users/lila/.oh-my-zsh
+	_=/Users/lila/Projects/Code/otr/tablemutant/.venv/bin/briefcase
+	__CFBundleIdentifier=com.apple.Terminal
+	__CF_USER_TEXT_ENCODING=0x1F5:0x0:0x0
+
+pyproject.toml:
+[project]
+name = "tablemutant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+dependencies = [
+    "aiohttp",
+    "certifi",
+    "chardet",
+    "dspy",
+    "huggingface_hub",
+    "numpy",
+    "polars",
+    "pypdf",
+    "scikit-learn",
+    "scipy",
+    "sentence-transformers",
+    "toga",
+    "tqdm",
+    "truststore",
+]
+
+[tool.briefcase]
+project_name = "TableMutant"
+bundle = "org.tablemutant"
+version = "0.1.0"
+url = "https://github.com/your-org/tablemutant"
+author = "TableMutant"
+author_email = "devnull@example.com"
+formal_name = "TableMutant"
+description = "Generate new columns in datasets using LLMs"
+
+[tool.briefcase.app.tablemutant]
+formal_name = "TableMutant"
+bundle = "org.tablemutant"
+version = "0.1.0"
+description = "Generate new columns in datasets using LLMs"
+sources = ["tablemutant"]
+# Keep runtime framework minimal; app deps are in [project.dependencies]
+requires = ["toga>=0.4.7", "std-nslog"]
+# Entry point: module:function for the app startup
+entry_point = "tablemutant.__main__:main"
+
+# Generic icon (fallback). Per-platform variants override this.
+icon = "resources/icons/tablemutant"
+
+# macOS specific settings
+[tool.briefcase.app.tablemutant.macOS]
+requires = ["toga-cocoa>=0.4.7"]
+icon = "resources/icons/macos"
+min_os_version = "12.0"
+universal_build = false
+
+# Linux settings
+[tool.briefcase.app.tablemutant.linux]
+requires = ["toga-gtk>=0.4.7"]
+icon = "resources/icons/linux"
+
+# Windows settings
+[tool.briefcase.app.tablemutant.windows]
+requires = ["toga-winforms>=0.4.7"]
+icon = "resources/icons/windows"
+
+# iOS (optional future target)
+[tool.briefcase.app.tablemutant.iOS]
+requires = ["toga-iOS>=0.4.7"]
+icon = "resources/icons/ios"
+
+# Android (optional future target)
+[tool.briefcase.app.tablemutant.android]
+requires = ["toga-android>=0.4.7"]
+icon = "resources/icons/android"
+
+Briefcase Log:
+[14:12:38]                                                                                                                                                                dev.py:248
+           [tablemutant] Starting in dev mode...                                                                                                                          dev.py:248
+                                                                                                                                                                   subprocess.py:838
+           >>> Running Command:                                                                                                                                    subprocess.py:838
+           >>>     /Users/lila/Projects/Code/otr/tablemutant/.venv/bin/python3 -c 'import runpy,                                                                   subprocess.py:838
+           sys;sys.path.pop(0);sys.argv.extend([]);runpy.run_module("tablemutant", run_name="__main__", alter_sys=True)'                                                            
+           >>> Working Directory:                                                                                                                                  subprocess.py:838
+           >>>     /Users/lila                                                                                                                                     subprocess.py:838
+           >>> Environment Overrides:                                                                                                                              subprocess.py:838
+           >>>     PYTHONPATH=/Users/lila/Projects/Code/otr/tablemutant                                                                                            subprocess.py:838
+           >>>     PYTHONUNBUFFERED=1                                                                                                                              subprocess.py:838
+           >>>     PYTHONDEVMODE=1                                                                                                                                 subprocess.py:838
+           >>>     PYTHONUTF8=1                                                                                                                                    subprocess.py:838
+           ===========================================================================                                                                                    run.py:169
+           Traceback (most recent call last):                                                                                                                      subprocess.py:195
+             File "<string>", line 1, in <module>                                                                                                                  subprocess.py:195
+             File "<frozen runpy>", line 226, in run_module                                                                                                        subprocess.py:195
+             File "<frozen runpy>", line 98, in _run_module_code                                                                                                   subprocess.py:195
+             File "<frozen runpy>", line 88, in _run_code                                                                                                          subprocess.py:195
+             File "/Users/lila/Projects/Code/otr/tablemutant/tablemutant/__main__.py", line 125, in <module>                                                       subprocess.py:195
+               main()                                                                                                                                              subprocess.py:195
+             File "/Users/lila/Projects/Code/otr/tablemutant/tablemutant/__main__.py", line 85, in main                                                            subprocess.py:195
+               from tablemutant.ui import TableMutantGUI                                                                                                           subprocess.py:195
+             File "/Users/lila/Projects/Code/otr/tablemutant/tablemutant/ui/__init__.py", line 22, in <module>                                                     subprocess.py:195
+               from tablemutant.core import TableMutant                                                                                                            subprocess.py:195
+             File "/Users/lila/Projects/Code/otr/tablemutant/tablemutant/core/__init__.py", line 11, in <module>                                                   subprocess.py:195
+               from .model_manager import ModelManager                                                                                                             subprocess.py:195
+             File "/Users/lila/Projects/Code/otr/tablemutant/tablemutant/core/model_manager.py", line 473                                                          subprocess.py:195
+               return subprocess.Popen(                                                                                                                            subprocess.py:195
+               ^                                                                                                                                                   subprocess.py:195
+           IndentationError: expected an indented block after function definition on line 472                                                                      subprocess.py:195
+                                                                                                                                                                      __main__.py:42
+           Problem running app tablemutant.                                                                                                                           __main__.py:43
+           Saving log... started                                                                                                                                      console.py:433
+
+Main thread traceback:
+╭─────────────────────────────────────────────────────────────────────── Traceback (most recent call last) ────────────────────────────────────────────────────────────────────────╮
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/__main__.py:27 in main                                                                    │
+│                                                                                                                                                                                  │
+│   24 │   │   │   Path.cwd() / "pyproject.toml",                                                                                                                                  │
+│   25 │   │   │   overrides=overrides,                                                                                                                                            │
+│   26 │   │   )                                                                                                                                                                   │
+│ ❱ 27 │   │   command(**options)                                                                                                                                                  │
+│   28 │   except HelpText as e:                                                                                                                                                   │
+│   29 │   │   console.info()                                                                                                                                                      │
+│   30 │   │   console.info(str(e))                                                                                                                                                │
+│                                                                                                                                                                                  │
+│ ╭──────────────────────────────────────────────────────── locals ─────────────────────────────────────────────────────────╮                                                      │
+│ │       command = <briefcase.commands.dev.DevCommand object at 0x102bd3c80>                                               │                                                      │
+│ │       console = <briefcase.console.Console object at 0x102524740>                                                       │                                                      │
+│ │             e = BriefcaseCommandError('Problem running app tablemutant.')                                               │                                                      │
+│ │ extra_cmdline = []                                                                                                      │                                                      │
+│ │       options = {'appname': None, 'update_requirements': False, 'run_app': True, 'test_mode': False, 'passthrough': []} │                                                      │
+│ │     overrides = {}                                                                                                      │                                                      │
+│ │        result = 200                                                                                                     │                                                      │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯                                                      │
+│                                                                                                                                                                                  │
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/commands/dev.py:250 in __call__                                                           │
+│                                                                                                                                                                                  │
+│   247 │   │   │   else:                                                                                                                                                          │
+│   248 │   │   │   │   self.console.info("Starting in dev mode...", prefix=app.app_name)                                                                                          │
+│   249 │   │   │   env = self.get_environment(app)                                                                                                                                │
+│ ❱ 250 │   │   │   return self.run_dev_app(                                                                                                                                       │
+│   251 │   │   │   │   app,                                                                                                                                                       │
+│   252 │   │   │   │   env,                                                                                                                                                       │
+│   253 │   │   │   │   passthrough=[] if passthrough is None else passthrough,                                                                                                    │
+│                                                                                                                                                                                  │
+│ ╭────────────────────────────────────────────────────────────────────── locals ───────────────────────────────────────────────────────────────────────╮                          │
+│ │                 app = <org.tablemutant.tablemutant v0.1.0 AppConfig>                                                                                │                          │
+│ │             appname = None                                                                                                                          │                          │
+│ │      dist_info_path = PosixPath('/Users/lila/Projects/Code/otr/tablemutant/tablemutant.dist-info')                                                  │                          │
+│ │                 env = {'PYTHONPATH': '/Users/lila/Projects/Code/otr/tablemutant', 'PYTHONUNBUFFERED': '1', 'PYTHONDEVMODE': '1', 'PYTHONUTF8': '1'} │                          │
+│ │             options = {}                                                                                                                            │                          │
+│ │         passthrough = []                                                                                                                            │                          │
+│ │             run_app = True                                                                                                                          │                          │
+│ │                self = <briefcase.commands.dev.DevCommand object at 0x102bd3c80>                                                                     │                          │
+│ │           test_mode = False                                                                                                                         │                          │
+│ │ update_requirements = False                                                                                                                         │                          │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯                          │
+│                                                                                                                                                                                  │
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/commands/dev.py:168 in run_dev_app                                                        │
+│                                                                                                                                                                                  │
+│   165 │   │   │   )                                                                                                                                                              │
+│   166 │   │   │                                                                                                                                                                  │
+│   167 │   │   │   # Start streaming logs for the app.                                                                                                                            │
+│ ❱ 168 │   │   │   self._stream_app_logs(                                                                                                                                         │
+│   169 │   │   │   │   app,                                                                                                                                                       │
+│   170 │   │   │   │   popen=app_popen,                                                                                                                                           │
+│   171 │   │   │   │   clean_output=False,                                                                                                                                        │
+│                                                                                                                                                                                  │
+│ ╭────────────────────────────────────────────────────────────────────────────────── locals ──────────────────────────────────────────────────────────────────────────────────╮   │
+│ │         app = <org.tablemutant.tablemutant v0.1.0 AppConfig>                                                                                                               │   │
+│ │   app_popen = <Popen: returncode: 1 args: ['/Users/lila/Projects/Code/otr/tablemutant/.ven...>                                                                             │   │
+│ │     cmdline = ['/Users/lila/Projects/Code/otr/tablemutant/.venv/bin/python3', '-c', 'import runpy, sys;sys.path.pop(0);sys.argv.extend([]);runpy.run_module("tablemut'+42] │   │
+│ │         env = {'PYTHONPATH': '/Users/lila/Projects/Code/otr/tablemutant', 'PYTHONUNBUFFERED': '1', 'PYTHONDEVMODE': '1', 'PYTHONUTF8': '1'}                                │   │
+│ │ main_module = 'tablemutant'                                                                                                                                                │   │
+│ │     options = {}                                                                                                                                                           │   │
+│ │ passthrough = []                                                                                                                                                           │   │
+│ │        self = <briefcase.commands.dev.DevCommand object at 0x102bd3c80>                                                                                                    │   │
+│ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯   │
+│                                                                                                                                                                                  │
+│ /Users/lila/Projects/Code/otr/tablemutant/.venv/lib/python3.12/site-packages/briefcase/commands/run.py:200 in _stream_app_logs                                                   │
+│                                                                                                                                                                                  │
+│   197 │   │   │   │   # If we're monitoring an actual app (not just a log stream),                                                                                               │
+│   198 │   │   │   │   # and the app didn't exit cleanly, surface the error to the user.                                                                                          │
+│   199 │   │   │   │   if popen.poll() != 0:                                                                                                                                      │
+│ ❱ 200 │   │   │   │   │   raise BriefcaseCommandError(f"Problem running app {app.app_name}.")                                                                                    │
+│   201 │   │                                                                                                                                                                      │
+│   202 │   │   except KeyboardInterrupt:                                                                                                                                          │
+│   203 │   │   │   pass  # Catch CTRL-C to exit normally                                                                                                                          │
+│                                                                                                                                                                                  │
+│ ╭──────────────────────────────────────────── locals ─────────────────────────────────────────────╮                                                                              │
+│ │          app = <org.tablemutant.tablemutant v0.1.0 AppConfig>                                   │                                                                              │
+│ │ clean_filter = None                                                                             │                                                                              │
+│ │ clean_output = False                                                                            │                                                                              │
+│ │   log_filter = <briefcase.commands.run.LogFilter object at 0x1048dc5f0>                         │                                                                              │
+│ │   log_stream = False                                                                            │                                                                              │
+│ │        popen = <Popen: returncode: 1 args: ['/Users/lila/Projects/Code/otr/tablemutant/.ven...> │                                                                              │
+│ │         self = <briefcase.commands.dev.DevCommand object at 0x102bd3c80>                        │                                                                              │
+│ ╰─────────────────────────────────────────────────────────────────────────────────────────────────╯                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+BriefcaseCommandError: Problem running app tablemutant.

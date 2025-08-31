@@ -62,7 +62,7 @@ class ColumnGenerator:
         
         new_values = []
         
-        print(f"Generating new column for {len(df)} rows...")
+        logger.info("Generating new column for %s rows...", len(df))
         
         # Check if we should use semantic similarity search
         use_semantic_search = rag_embeddings_data is not None and rag_processor is not None
@@ -130,7 +130,7 @@ class ColumnGenerator:
                 )
                 new_values.append(getattr(result, "new_value", ""))
             except Exception as e:
-                print(f"Error generating value for row: {e}")
+                logger.error("Error generating value for row: %s", e)
                 new_values.append("")  # Default empty value on error
         
         return new_values

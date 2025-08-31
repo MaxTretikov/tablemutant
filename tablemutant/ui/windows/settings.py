@@ -3,6 +3,7 @@
 SettingsWindow - Application settings configuration
 """
 
+import aiohttp
 import asyncio
 import logging
 import os
@@ -16,13 +17,11 @@ import urllib.parse
 from collections import defaultdict
 from pathlib import Path
 
-import aiohttp
-
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
-import urllib.parse
 
+from tablemutant.core.tls_config import get_http_client, get_async_http_client
 from .model_selection import ModelSelectionWindow
 
 # Get logger for this module
@@ -54,8 +53,7 @@ class SettingsWindow:
     def get_models_dir(self):
         """Get the models directory path."""
         if self.models_dir is None:
-            self.models_dir = Path(self.app.settings_manager.get('models_directory', 
-                                                               Path.home() / '.tablemutant' / 'models'))
+            self.models_dir = Path(self.app.settings_manager.get('models_directory'))
         return self.models_dir
         
     def get_local_models(self):
@@ -204,7 +202,7 @@ class SettingsWindow:
             style=Pack(width=100)
         )
         self.host_input = toga.TextInput(
-            value=self.app.settings_manager.get('server_host', 'http://localhost:8000'),
+            value=self.app.settings_manager.get('server_host'),
             placeholder="http://localhost:8000 or https://api.yourserver.com",
             style=Pack(flex=1)
         )
@@ -218,7 +216,7 @@ class SettingsWindow:
             style=Pack(width=100)
         )
         self.token_input = toga.PasswordInput(
-            value=self.app.settings_manager.get('auth_token', ''),
+            value=self.app.settings_manager.get('auth_token'),
             placeholder="Leave empty if no authentication is required",
             style=Pack(flex=1)
         )
@@ -282,7 +280,7 @@ class SettingsWindow:
             style=Pack(width=100)
         )
         self.temperature_input = toga.NumberInput(
-            value=self.app.settings_manager.get('temperature', 0.7),
+            value=self.app.settings_manager.get('temperature'),
             min=0.0,
             max=2.0,
             step=0.1,
@@ -297,7 +295,7 @@ class SettingsWindow:
             style=Pack(width=100)
         )
         self.max_tokens_input = toga.NumberInput(
-            value=self.app.settings_manager.get('max_tokens', 2048),
+            value=self.app.settings_manager.get('max_tokens'),
             min=128,
             max=8192,
             step=128,
@@ -375,8 +373,8 @@ class SettingsWindow:
     async def fetch_remote_models(self, widget):
         """Fetch models from remote OpenAI-compatible /v1/models endpoint and let user choose."""
         try:
-            server_host = self.app.settings_manager.get('server_host', 'http://localhost:8000')
-            auth_token = self.app.settings_manager.get('auth_token', '')
+            server_host = self.app.settings_manager.get('server_host')
+            auth_token = self.app.settings_manager.get('auth_token')
             # Only allow for non-local hosts
             parsed = urllib.parse.urlparse(server_host)
             host = (parsed.hostname or '').lower() if parsed.hostname else ''
@@ -802,6 +800,47 @@ class SettingsWindow:
         
         return final_groups, single_files
     
+    async def _fetch_file_size_with_retry(self, session, repo_id, filename, max_retries=3):
+        """Fetch file size from HuggingFace with retry logic."""
+        for attempt in range(max_retries):
+            try:
+                resolve_url = f'https://huggingface.co/{repo_id}/resolve/main/{filename}'
+                
+                async with session.head(resolve_url) as response:
+                    if response.status in [200, 302]:  # 302 is redirect to actual file
+                        # HuggingFace returns file size in X-Linked-Size header
+                        linked_size = response.headers.get('X-Linked-Size')
+                        if linked_size:
+                            return int(linked_size) / (1024 * 1024)
+                        
+                        # Fallback to content-length
+                        content_length = response.headers.get('content-length')
+                        if content_length:
+                            return int(content_length) / (1024 * 1024)
+                        
+                        # No size information available
+                        logger.debug(f"No size headers found for {filename}")
+                        return None
+                    else:
+                        logger.debug(f"HTTP {response.status} for {filename}")
+                        if response.status == 404:
+                            # File not found, don't retry
+                            return None
+                        # For other status codes, we might want to retry
+                        
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                if attempt == max_retries - 1:
+                    logger.debug(f"Failed to get size for {filename} after {max_retries} attempts: {e}")
+                    return None
+                else:
+                    logger.debug(f"Retry {attempt + 1}/{max_retries} for {filename}: {e}")
+                    await asyncio.sleep(1)  # Wait before retry
+            except Exception as e:
+                logger.debug(f"Unexpected error getting size for {filename}: {e}")
+                return None
+        
+        return None
+    
     async def _get_file_sizes(self, model_identifier, available_files):
         """Get file sizes for the available files, grouping multi-part files."""
         files_with_sizes = []
@@ -821,80 +860,43 @@ class SettingsWindow:
             total_files = len(single_files) + sum(len(parts) for parts in grouped_files.values())
             processed_files = 0
             
-            async with aiohttp.ClientSession() as session:
-                # Process single files
+            # Configure timeout for size fetching requests
+            timeout = aiohttp.ClientTimeout(
+                total=30,  # 30 seconds total timeout
+                connect=10,  # 10 seconds to connect
+                sock_read=10  # 10 seconds between reads
+            )
+            
+            async_client = get_async_http_client()
+            async with async_client.session(timeout=timeout) as session:
+                # Process single files with retry logic
                 for filename in single_files:
-                    try:
-                        # Use HuggingFace resolve URL to get file metadata
-                        resolve_url = f'https://huggingface.co/{repo_id}/resolve/main/{filename}'
-                        
-                        async with session.head(resolve_url) as response:
-                            # HuggingFace returns file size in X-Linked-Size header
-                            if response.status in [200, 302]:  # 302 is redirect to actual file
-                                linked_size = response.headers.get('X-Linked-Size')
-                                if linked_size:
-                                    size_mb = int(linked_size) / (1024 * 1024)
-                                    files_with_sizes.append((filename, size_mb, False))  # False = not grouped
-                                else:
-                                    # Fallback to content-length
-                                    content_length = response.headers.get('content-length')
-                                    if content_length:
-                                        size_mb = int(content_length) / (1024 * 1024)
-                                        files_with_sizes.append((filename, size_mb, False))
-                                    else:
-                                        files_with_sizes.append((filename, None, False))
-                            else:
-                                files_with_sizes.append((filename, None, False))
-                                
-                        processed_files += 1
-                        # Update progress while fetching sizes
-                        progress = (processed_files / total_files) * 50  # Use 50% of progress bar
-                        self.download_progress.value = progress
-                        await asyncio.sleep(0.05)  # Allow UI to update
-                        
-                    except Exception as e:
-                        # If we can't get size, just add with None
-                        files_with_sizes.append((filename, None, False))
-                        print(f"Error getting size for {filename}: {e}")  # Debug info
-                        processed_files += 1
+                    size_mb = await self._fetch_file_size_with_retry(session, repo_id, filename)
+                    files_with_sizes.append((filename, size_mb, False))  # False = not grouped
+                    
+                    processed_files += 1
+                    # Update progress while fetching sizes
+                    progress = (processed_files / total_files) * 50  # Use 50% of progress bar
+                    self.download_progress.value = progress
+                    await asyncio.sleep(0.05)  # Allow UI to update
                 
-                # Process grouped files
+                # Process grouped files with retry logic
                 for base_name, part_filenames in grouped_files.items():
                     combined_size = 0
                     all_sizes_found = True
                     
                     for filename in part_filenames:
-                        try:
-                            resolve_url = f'https://huggingface.co/{repo_id}/resolve/main/{filename}'
-                            
-                            async with session.head(resolve_url) as response:
-                                if response.status in [200, 302]:
-                                    linked_size = response.headers.get('X-Linked-Size')
-                                    if linked_size:
-                                        size_mb = int(linked_size) / (1024 * 1024)
-                                        combined_size += size_mb
-                                    else:
-                                        content_length = response.headers.get('content-length')
-                                        if content_length:
-                                            size_mb = int(content_length) / (1024 * 1024)
-                                            combined_size += size_mb
-                                        else:
-                                            all_sizes_found = False
-                                            break
-                                else:
-                                    all_sizes_found = False
-                                    break
-                                    
-                            processed_files += 1
-                            progress = (processed_files / total_files) * 50
-                            self.download_progress.value = progress
-                            await asyncio.sleep(0.05)
-                            
-                        except Exception as e:
-                            print(f"Error getting size for {filename}: {e}")
+                        size_mb = await self._fetch_file_size_with_retry(session, repo_id, filename)
+                        if size_mb is not None:
+                            combined_size += size_mb
+                        else:
                             all_sizes_found = False
-                            processed_files += 1
                             break
+                            
+                        processed_files += 1
+                        progress = (processed_files / total_files) * 50
+                        self.download_progress.value = progress
+                        await asyncio.sleep(0.05)
                     
                     # Add the grouped file entry
                     display_name = f"{base_name}.gguf"
@@ -905,20 +907,41 @@ class SettingsWindow:
         # Handle direct URLs (simpler case, no grouping needed)
         elif model_identifier.startswith('http'):
             filename = available_files[0] if available_files else "model.gguf"
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.head(model_identifier) as response:
-                        if response.status == 200:
-                            content_length = response.headers.get('content-length')
-                            if content_length:
-                                size_mb = int(content_length) / (1024 * 1024)
-                                files_with_sizes.append((filename, size_mb, False))
+            
+            # Configure timeout for URL requests
+            timeout = aiohttp.ClientTimeout(
+                total=30,  # 30 seconds total timeout
+                connect=10,  # 10 seconds to connect
+                sock_read=10  # 10 seconds between reads
+            )
+            
+            size_mb = None
+            max_retries = 3
+            
+            for attempt in range(max_retries):
+                try:
+                    async_client = get_async_http_client()
+                    async with async_client.session(timeout=timeout) as session:
+                        async with session.head(model_identifier) as response:
+                            if response.status == 200:
+                                content_length = response.headers.get('content-length')
+                                if content_length:
+                                    size_mb = int(content_length) / (1024 * 1024)
+                                    break
                             else:
-                                files_with_sizes.append((filename, None, False))
-                        else:
-                            files_with_sizes.append((filename, None, False))
-            except Exception:
-                files_with_sizes.append((filename, None, False))
+                                logger.debug(f"HTTP {response.status} for {model_identifier}")
+                                break
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt == max_retries - 1:
+                        logger.debug(f"Failed to get size for {model_identifier} after {max_retries} attempts: {e}")
+                    else:
+                        logger.debug(f"Retry {attempt + 1}/{max_retries} for {model_identifier}: {e}")
+                        await asyncio.sleep(1)  # Wait before retry
+                except Exception as e:
+                    logger.debug(f"Unexpected error getting size for {model_identifier}: {e}")
+                    break
+            
+            files_with_sizes.append((filename, size_mb, False))
         else:
             # Fallback
             files_with_sizes = [(f, None, False) for f in available_files]
@@ -947,13 +970,14 @@ class SettingsWindow:
             remote_files = list_repo_files(repo_id)
             remote_gguf_files = [f for f in remote_files if f.endswith('.gguf')]
             
-            async with aiohttp.ClientSession() as session:
+            async_client = get_async_http_client()
+            async with async_client.session() as session:
                 for local_file in gguf_files:
                     filename = local_file.name
                     
                     # Check if this file exists in the remote repository
                     if filename not in remote_gguf_files:
-                        print(f"Local file {filename} not found in remote repository. Marking as corrupted.")
+                        logger.warning("Local file %s not found in remote repository. Marking as corrupted.", filename)
                         corrupted_files.append(local_file)
                         continue
                     
@@ -975,18 +999,19 @@ class SettingsWindow:
                                 if remote_size:
                                     local_size = local_file.stat().st_size
                                     if local_size != remote_size:
-                                        print(f"Size mismatch for {filename}: local={local_size}, remote={remote_size}. Marking as corrupted.")
+                                        logger.warning("Size mismatch for %s: local=%s, remote=%s. Marking as corrupted.",
+                                                      filename, local_size, remote_size)
                                         corrupted_files.append(local_file)
                                     else:
-                                        print(f"✓ {filename} size matches remote ({local_size} bytes)")
+                                        logger.debug("✓ %s size matches remote (%s bytes)", filename, local_size)
                             else:
                                 logger.debug("Could not verify %s (HTTP %s)", filename, response.status)
                     except Exception as e:
-                        print(f"Error checking {filename}: {e}")
+                        logger.error("Error checking %s: %s", filename, e)
                         # Don't mark as corrupted if we can't verify - could be network issue
                         
         except Exception as e:
-            print(f"Error during corruption check for {repo_id}: {e}")
+            logger.error("Error during corruption check for %s: %s", repo_id, e)
             # Return empty list if we can't verify - don't delete files due to network errors
             
         return corrupted_files
@@ -994,8 +1019,7 @@ class SettingsWindow:
     async def _check_model_availability(self, model_identifier):
         """Check if a model is available and return GGUF files."""
         # Get models directory from settings manager
-        models_dir = Path(self.app.settings_manager.get('models_directory', 
-                                                       Path.home() / '.tablemutant' / 'models'))
+        models_dir = Path(self.app.settings_manager.get('models_directory'))
         
         # Handle HuggingFace models
         if '/' in model_identifier and not model_identifier.startswith('http'):
@@ -1014,14 +1038,14 @@ class SettingsWindow:
                         for corrupted_file in corrupted_files:
                             try:
                                 corrupted_file.unlink()
-                                print(f"Deleted corrupted file: {corrupted_file}")
+                                logger.info("Deleted corrupted file: %s", corrupted_file)
                             except Exception as e:
-                                print(f"Error deleting corrupted file {corrupted_file}: {e}")
+                                logger.error("Error deleting corrupted file %s: %s", corrupted_file, e)
                         
                         # Re-check remaining files
                         remaining_files = [f for f in gguf_files if f not in corrupted_files]
                         if not remaining_files:
-                            print(f"All local files for {repo_id} were corrupted and deleted. Re-downloading required.")
+                            logger.warning("All local files for %s were corrupted and deleted. Re-downloading required.", repo_id)
                         else:
                             return False, [f.name for f in remaining_files], str(local_repo_dir)
                     else:
@@ -1052,7 +1076,8 @@ class SettingsWindow:
             
             # Check if URL is accessible
             try:
-                async with aiohttp.ClientSession() as session:
+                async_client = get_async_http_client()
+                async with async_client.session() as session:
                     async with session.head(model_identifier) as response:
                         if response.status == 200:
                             return True, [filename], None
@@ -1078,8 +1103,7 @@ class SettingsWindow:
         self.apply_button.enabled = False
         
         try:
-            models_dir = Path(self.app.settings_manager.get('models_directory', 
-                                                           Path.home() / '.tablemutant' / 'models'))
+            models_dir = Path(self.app.settings_manager.get('models_directory'))
             models_dir.mkdir(parents=True, exist_ok=True)
             
             # Handle HuggingFace models
@@ -1111,9 +1135,9 @@ class SettingsWindow:
             if hasattr(e, '__cause__') and e.__cause__:
                 full_error_msg += f" (Caused by: {e.__cause__})"
             
-            # Print traceback to console for debugging
-            print(f"Download error for {model_identifier}:")
-            print(traceback.format_exc())
+            # Log traceback for debugging
+            logger.error("Download error for %s:", model_identifier)
+            logger.error("%s", traceback.format_exc())
             
             self.download_status.text = full_error_msg
             self.apply_button.enabled = True
@@ -1225,7 +1249,8 @@ class SettingsWindow:
         filename = os.path.basename(parsed.path)
         local_path = models_dir / filename
         
-        async with aiohttp.ClientSession() as session:
+        async_client = get_async_http_client()
+        async with async_client.session() as session:
             async with session.get(url) as response:
                 if response.status != 200:
                     raise Exception(f"Failed to download: HTTP {response.status}")
@@ -1320,8 +1345,7 @@ class SettingsWindow:
     async def delete_all_models(self, widget):
         """Delete all downloaded models from the local models directory."""
         # Get models directory
-        models_dir = Path(self.app.settings_manager.get('models_directory', 
-                                                       Path.home() / '.tablemutant' / 'models'))
+        models_dir = Path(self.app.settings_manager.get('models_directory'))
         
         # Check if directory exists and has contents
         if not models_dir.exists():

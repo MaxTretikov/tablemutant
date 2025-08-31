@@ -134,7 +134,7 @@ class FileSelectionWindow:
             style=Pack(margin=(0, 10, 0, 0))
         )
         self.model_status = toga.Label(
-            self._truncate_model_name(self.app.settings_manager.get('model', 'Not configured')),
+            self._truncate_model_name(self.app.settings_manager.get('model') or 'Not configured'),
             style=Pack(flex=1, margin=(0, 10, 0, 0))
         )
         settings_button = toga.Button(
@@ -357,7 +357,7 @@ class FileSelectionWindow:
     def refresh_model_status(self):
         """Refresh the model status display."""
         if hasattr(self, 'model_status'):
-            self.model_status.text = self._truncate_model_name(self.app.settings_manager.get('model', 'Not configured'))
+            self.model_status.text = self._truncate_model_name(self.app.settings_manager.get('model') or 'Not configured')
     
     async def confirm_file_selection(self, widget):
         """Confirm file selection and move to column selection."""

@@ -92,12 +92,13 @@ Examples:
             return app.main_loop()
             
         except ImportError as e:
-            print(f"Error: Cannot launch GUI - {e}")
-            print("\nThe GUI requires Toga to be installed.")
-            print("Install with: pip install toga")
-            print("\nAlternatively, use CLI mode with required arguments:")
-            print("  --model, --table, and --instructions")
-            print("\nRun 'tablemutant --help' for more information.")
+            logger = logging.getLogger('tablemutant')
+            logger.error("Cannot launch GUI - %s", e)
+            logger.error("The GUI requires Toga to be installed.")
+            logger.error("Install with: pip install toga")
+            logger.error("Alternatively, use CLI mode with required arguments:")
+            logger.error("  --model, --table, and --instructions")
+            logger.error("Run 'tablemutant --help' for more information.")
             sys.exit(1)
     else:
         # Run CLI mode
@@ -107,12 +108,14 @@ Examples:
             tm = TableMutant()
             tm.run(args)
         except KeyboardInterrupt:
-            print("\nInterrupted by user")
+            logger = logging.getLogger('tablemutant')
+            logger.info("Interrupted by user")
             if 'tm' in locals():
                 tm.cleanup()
             sys.exit(1)
         except Exception as e:
-            print(f"Error: {e}")
+            logger = logging.getLogger('tablemutant')
+            logger.error("Error: %s", e)
             if 'tm' in locals():
                 tm.cleanup()
             sys.exit(1)

@@ -4,8 +4,10 @@ InitializationWindow - Handles application startup and initialization
 """
 
 import asyncio
+import functools
 import os
 import logging
+import threading
 from pathlib import Path
 
 import toga
@@ -23,6 +25,9 @@ class InitializationWindow:
         self.status_label = None
         self.init_progress = None
         self.init_log = None
+        self._progress_state = {"bytes": 0, "total": 1}
+        self._progress_lock = threading.Lock()
+        self._progress_done = None
         
     def create_content(self):
         """Create and return the initialization window content."""
@@ -59,70 +64,86 @@ class InitializationWindow:
         
         return self.init_box
     
+    def _tick_progress(self):
+        # Runs on the Toga event loop; safe to touch widgets
+        with self._progress_lock:
+            bytes_done = self._progress_state["bytes"]
+            total = self._progress_state["total"]
+            done = self._progress_done
+
+        if done is None:
+            self._progress_done = False
+            self.init_log.value += "✗\nDownloading llamafile... "
+
+        pct = 5 + int(65 * (bytes_done / (total or 1)))
+        pct = max(5, min(70, pct))
+        mb = bytes_done / 1_000_000
+        tmb = total / 1_000_000
+
+        self.init_progress.value = pct
+        self.status_label.text = f"Downloading llamafile {mb:.1f}/{tmb:.1f} MB"
+
+        # Re‑arm if the download is still running
+        if not done:
+            asyncio.get_running_loop().call_later(1/15, self._tick_progress)
+    
     async def initialize_app(self):
-        """Initialize the application components."""
         logger.debug("InitializationWindow.initialize_app")
+
         try:
-            # Check if we need to download llamafile
-            self.status_label.text = "Checking for llamafile..."
-            self.init_progress.value = 10
-            await asyncio.sleep(0.1)  # Allow UI to update
-            
-            # Download llamafile if needed
-            llamafile_dir = Path.home() / '.tablemutant' / 'bin'
-            existing_llamafiles = list(llamafile_dir.glob('llamafile-*')) if llamafile_dir.exists() else []
-            
-            if not existing_llamafiles:
-                self.status_label.text = "Downloading llamafile..."
-                self.init_progress.value = 20
-                self.init_log.value += "Llamafile not found locally, downloading...\n"
-                
-                # Run download in thread to avoid blocking
-                loop = asyncio.get_event_loop()
-                try:
-                    logger.debug("InitializationWindow downloading llamafile")
-                    self.app.tm.model_manager.llamafile_path = await loop.run_in_executor(
-                        None, self.app.tm.model_manager.download_llamafile
-                    )
-                    self.init_log.value += f"Downloaded llamafile to: {self.app.tm.model_manager.llamafile_path}\n"
-                    logger.debug("InitializationWindow llamafile downloaded to: %s", self.app.tm.model_manager.llamafile_path)
-                except Exception as e:
-                    self.init_log.value += f"Error downloading llamafile: {e}\n"
-                    logger.debug("InitializationWindow error downloading llamafile: %s", e)
-                    raise
-            else:
-                self.app.tm.model_manager.llamafile_path = str(max(existing_llamafiles, key=os.path.getctime))
-                self.init_log.value += f"Found existing llamafile: {self.app.tm.model_manager.llamafile_path}\n"
-            
-            self.init_progress.value = 50
-            
-            # Check Python dependencies
+            self.status_label.text = "Setting up llamafile..."
+            self.init_progress.value = 5
+            await asyncio.sleep(0.05)
+
+            self.init_log.value += "Checking for llamafile... "
+
+            # Kick off periodic UI polling on the main loop
+            asyncio.get_running_loop().call_soon(self._tick_progress)
+
+            def _progress(bytes_done: int, total: int):
+                with self._progress_lock:
+                    self._progress_state["bytes"] = bytes_done
+                    self._progress_state["total"] = total or 1
+
+            get_llama = functools.partial(self.app.tm.model_manager.download_llamafile, progress_cb=_progress)
+
+            # Offload the blocking download to a worker thread
+            self.app.tm.model_manager.llamafile_path = await asyncio.to_thread(get_llama)
+
+            # Stop the UI poller
+            with self._progress_lock:
+                self._progress_done = True
+                self.init_log.value += "✓"
+
+            self.init_progress.value = 80
             self.status_label.text = "Checking dependencies..."
             self.init_log.value += "\nChecking required packages:\n"
-            
+
             required_packages = ['polars', 'dspy', 'tqdm', 'chardet']
             for package in required_packages:
                 try:
                     __import__(package)
                     self.init_log.value += f"✓ {package} installed\n"
                 except ImportError:
-                    self.init_log.value += f"✗ {package} NOT installed - please install with pip\n"
-            
-            self.init_progress.value = 80
-            
-            # Setup complete
+                    self.init_log.value += f"✗ {package} NOT installed (install with pip)\n"
+
+            self.init_progress.value = 95
+            self.status_label.text = "Finalizing..."
+            await asyncio.sleep(0.2)
+
             self.status_label.text = "Initialization complete!"
             self.init_progress.value = 100
             self.init_log.value += "\nReady to load table files!\n"
-            
-            # Wait a moment before transitioning
-            await asyncio.sleep(1)
-            
+            await asyncio.sleep(0.5)
+
         except Exception as e:
             self.status_label.text = "Initialization failed!"
             self.init_log.value += f"\nERROR: {str(e)}\n"
-            await asyncio.sleep(3)
-        
-        # Show file selection window
-        logger.debug("InitializationWindow showing file selection window")
-        self.app.show_file_selection_window()
+            logger.exception("Initialization failed")
+            await asyncio.sleep(2.0)
+        finally:
+            logger.debug("InitializationWindow showing file selection window")
+            # Prevent duplicate window if initialize_app was triggered twice
+            if not getattr(self.app, "_file_selector_shown", False):
+                self.app._file_selector_shown = True
+                self.app.show_file_selection_window()

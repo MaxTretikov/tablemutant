@@ -3,18 +3,24 @@
 ModelSelectionWindow - Window for selecting specific model variants to download
 """
 
+import aiohttp
 import asyncio
 import os
 import threading
 import time
 import traceback
 import urllib.parse
+import logging
 from pathlib import Path
 
-import aiohttp
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
+
+from tablemutant.core.tls_config import get_async_http_client
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.ui.windows.model_selection')
 
 
 class ModelSelectionWindow:
@@ -148,8 +154,7 @@ class ModelSelectionWindow:
             if dialog_response:  # User clicked "Yes" to use existing
                 # Find the local path and return it
                 filename = selected_display_text.split("(")[0].strip()  # Extract filename before size info
-                models_dir = Path(self.app.settings_manager.get('models_directory', 
-                                                               Path.home() / '.tablemutant' / 'models'))
+                models_dir = Path(self.app.settings_manager.get('models_directory'))
                 
                 if '/' in self.model_identifier and not self.model_identifier.startswith('http'):
                     parts = self.model_identifier.split('/')
@@ -249,8 +254,7 @@ class ModelSelectionWindow:
         self.download_progress.value = 0
         
         try:
-            models_dir = Path(self.app.settings_manager.get('models_directory', 
-                                                           Path.home() / '.tablemutant' / 'models'))
+            models_dir = Path(self.app.settings_manager.get('models_directory'))
             models_dir.mkdir(parents=True, exist_ok=True)
             
             # Handle HuggingFace models
@@ -265,8 +269,7 @@ class ModelSelectionWindow:
             self.download_progress.value = 100
             
             # Determine the local path for the downloaded model
-            models_dir = Path(self.app.settings_manager.get('models_directory', 
-                                                           Path.home() / '.tablemutant' / 'models'))
+            models_dir = Path(self.app.settings_manager.get('models_directory'))
             
             if '/' in model_identifier and not model_identifier.startswith('http'):
                 # HuggingFace model
@@ -289,7 +292,7 @@ class ModelSelectionWindow:
             
             # Verify the file actually exists
             if not local_path.exists():
-                print(f"Warning: Expected downloaded file not found at {local_path}")
+                logger.warning("Expected downloaded file not found at %s", local_path)
                 # Fallback: try to find any GGUF file in the directory
                 if local_path.parent.exists():
                     gguf_files = list(local_path.parent.glob('*.gguf'))
@@ -322,9 +325,9 @@ class ModelSelectionWindow:
             if hasattr(e, '__cause__') and e.__cause__:
                 full_error_msg += f" (Caused by: {e.__cause__})"
             
-            # Print traceback to console for debugging
-            print(f"Download error for {model_identifier}:")
-            print(traceback.format_exc())
+            # Log traceback for debugging
+            logger.error("Download error for %s:", model_identifier)
+            logger.error("%s", traceback.format_exc())
             
             self.download_status.text = full_error_msg
             self.download_button.enabled = True
@@ -411,7 +414,8 @@ class ModelSelectionWindow:
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
-                        async with aiohttp.ClientSession(timeout=timeout) as session:
+                        async_client = get_async_http_client()
+                        async with async_client.session(timeout=timeout) as session:
                             if attempt > 0:
                                 self.download_status.text = f"Retrying download {attempt+1}/{max_retries}: {filename}"
                                 await asyncio.sleep(2)  # Brief pause before retry
@@ -471,7 +475,7 @@ class ModelSelectionWindow:
                                 raise Exception(f"Network error after {max_retries} attempts: {str(e) or type(e).__name__}")
                         else:
                             # Not the last attempt, will retry
-                            print(f"Download attempt {attempt+1} failed for {filename}: {e}")
+                            logger.warning("Download attempt %s failed for %s: %s", attempt+1, filename, e)
                             continue
             
             self.download_progress.value = 100
@@ -494,7 +498,8 @@ class ModelSelectionWindow:
             local_path = models_dir / filename
             
             # Configure timeout for large file downloads
-            timeout = aiohttp.ClientTimeout(
+            async_client = get_async_http_client()
+            timeout = async_client.get_timeout(
                 total=None,  # No total timeout
                 connect=30,  # 30 seconds to connect
                 sock_read=300  # 5 minutes between reads (for slow downloads)
@@ -504,7 +509,8 @@ class ModelSelectionWindow:
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async_client = get_async_http_client()
+                    async with async_client.session(timeout=timeout) as session:
                         if attempt > 0:
                             self.download_status.text = f"Retrying download {attempt+1}/{max_retries}: {filename}"
                             await asyncio.sleep(2)  # Brief pause before retry
@@ -549,18 +555,16 @@ class ModelSelectionWindow:
                     # If we get here, download succeeded
                     break
                     
-                except (asyncio.TimeoutError, aiohttp.ClientError, OSError) as e:
+                except Exception as e:
                     if attempt == max_retries - 1:
                         # Last attempt failed
                         if isinstance(e, asyncio.TimeoutError):
                             raise Exception(f"Download timeout after {max_retries} attempts. File may be too large or connection too slow: {filename}")
-                        elif isinstance(e, aiohttp.ClientError):
-                            raise Exception(f"Network error after {max_retries} attempts: {str(e) or type(e).__name__}")
                         else:
-                            raise Exception(f"File system error while saving to {local_path}: {str(e) or type(e).__name__}")
+                            raise Exception(f"Network error after {max_retries} attempts: {str(e) or type(e).__name__}")
                     else:
                         # Not the last attempt, will retry
-                        print(f"Download attempt {attempt+1} failed for {filename}: {e}")
+                        logger.warning("Download attempt %s failed for %s: %s", attempt+1, filename, e)
                         continue
                         
         except Exception as e:
@@ -653,8 +657,7 @@ class ModelSelectionWindow:
     
     def _get_local_files(self):
         """Get list of locally downloaded files for this model identifier."""
-        models_dir = Path(self.app.settings_manager.get('models_directory', 
-                                                       Path.home() / '.tablemutant' / 'models'))
+        models_dir = Path(self.app.settings_manager.get('models_directory'))
         local_files = []
         
         # Handle HuggingFace models

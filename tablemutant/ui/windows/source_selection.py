@@ -4,10 +4,14 @@ SourceSelectionWindow - Handles selecting source columns and uploading RAG docum
 """
 
 import os
+import logging
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 from toga.sources import Row
+
+# Get logger for this module
+logger = logging.getLogger('tablemutant.ui.windows.source_selection')
 
 
 class SourceSelectionWindow:
@@ -302,7 +306,7 @@ class SourceSelectionWindow:
                             raise progress_error
                 
                 except Exception as embedding_error:
-                    print(f"Error during embedding generation: {embedding_error}")
+                    logger.error("Error during embedding generation: %s", embedding_error)
                     await self.app.main_window.dialog(
                         toga.ErrorDialog(
                             title="Processing Error",
