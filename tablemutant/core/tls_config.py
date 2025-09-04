@@ -80,10 +80,12 @@ class TLSConfig:
         """Patch ssl.create_default_context to use certifi by default."""
         _orig_create_default_context = ssl.create_default_context
 
-        def _patched_create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile_arg=None, capath=None, cadata=None):
-            if cafile_arg is None and capath is None and cadata is None:
-                return _orig_create_default_context(purpose, cafile=cafile, capath=capath, cadata=cadata)
-            return _orig_create_default_context(purpose, cafile=cafile_arg, capath=capath, cadata=cadata)
+        def _patched_create_default_context(purpose=ssl.Purpose.SERVER_AUTH, cafile=None, capath=None, cadata=None):
+            # If no specific parameters are provided, use our certifi cafile
+            if cafile is None and capath is None and cadata is None:
+                return _orig_create_default_context(purpose, cafile=cafile)
+            # Otherwise, use the provided parameters as-is
+            return _orig_create_default_context(purpose, cafile=cafile, capath=capath, cadata=cadata)
 
         # Only patch once
         if getattr(ssl.create_default_context, "__name__", "") != "_patched_create_default_context":
@@ -109,6 +111,23 @@ class TLSConfig:
     def tls_source(self) -> str:
         """Get the TLS source description."""
         return self._tls_source
+    
+    @staticmethod
+    def is_localhost_url(url: str) -> bool:
+        """Check if a URL points to localhost/local addresses."""
+        try:
+            parsed = urllib.parse.urlparse(url)
+            host = (parsed.hostname or '').lower()
+            return host in ('localhost', '127.0.0.1', '::1', '')
+        except Exception:
+            return False
+    
+    def get_ssl_context_for_url(self, url: str) -> Optional[ssl.SSLContext]:
+        """Get appropriate SSL context for a URL, skipping verification for localhost."""
+        if self.is_localhost_url(url):
+            # For localhost, don't use SSL verification
+            return None
+        return self._ssl_context
 
 
 class HTTPClient:
@@ -124,10 +143,11 @@ class HTTPClient:
         headers.setdefault("User-Agent", f"TableMutant/1 Python/{sys.version_info[0]}.{sys.version_info[1]}")
         
         req = urllib.request.Request(url, headers=headers, data=data)
-        # context parameter is ignored for http URLs; it applies only to https
-        return urllib.request.urlopen(req, timeout=timeout, context=self.tls_config.ssl_context)
+        # Use appropriate SSL context based on URL (None for localhost)
+        ssl_context = self.tls_config.get_ssl_context_for_url(url)
+        return urllib.request.urlopen(req, timeout=timeout, context=ssl_context)
     
-    def request(self, url: str, method: str = "GET", timeout: Optional[float] = None, 
+    def request(self, url: str, method: str = "GET", timeout: Optional[float] = None,
                 headers: Optional[Dict[str, str]] = None, data: Optional[bytes] = None):
         """Make an HTTP request with the configured TLS context."""
         if headers is None:
@@ -136,7 +156,9 @@ class HTTPClient:
         
         req = urllib.request.Request(url, headers=headers, data=data)
         req.get_method = lambda: method
-        return urllib.request.urlopen(req, timeout=timeout, context=self.tls_config.ssl_context)
+        # Use appropriate SSL context based on URL (None for localhost)
+        ssl_context = self.tls_config.get_ssl_context_for_url(url)
+        return urllib.request.urlopen(req, timeout=timeout, context=ssl_context)
 
 
 class AsyncHTTPClient:
@@ -145,8 +167,12 @@ class AsyncHTTPClient:
     def __init__(self):
         self.tls_config = TLSConfig()
     
-    def get_ssl_context(self) -> Optional[ssl.SSLContext]:
-        """Get the SSL context for aiohttp."""
+    def get_ssl_context(self, url: str = None) -> Optional[ssl.SSLContext]:
+        """Get the SSL context for aiohttp, with optional URL-based localhost detection."""
+        # If URL is provided and it's localhost, return False to disable SSL verification
+        if url and self.tls_config.is_localhost_url(url):
+            return False  # aiohttp uses False to disable SSL verification
+        
         # For aiohttp, we need to explicitly provide the SSL context
         # because aiohttp doesn't always pick up the patched ssl.create_default_context
         if self.tls_config.ssl_context is not None:
@@ -156,12 +182,13 @@ class AsyncHTTPClient:
             # that will use the system trust store
             return ssl.create_default_context()
     
-    def get_connector(self, **kwargs) -> 'aiohttp.TCPConnector':
+    def get_connector(self, url: str = None, **kwargs) -> 'aiohttp.TCPConnector':
         """Get an aiohttp connector with proper SSL configuration."""
         try:
             import aiohttp
-            ssl_context = self.get_ssl_context()
-            # Always provide an SSL context to ensure consistent behavior
+            ssl_context = self.get_ssl_context(url)
+            # For localhost URLs, ssl_context will be False (disable SSL verification)
+            # For other URLs, provide an SSL context
             if ssl_context is None:
                 ssl_context = ssl.create_default_context()
             return aiohttp.TCPConnector(ssl=ssl_context, **kwargs)
@@ -182,13 +209,13 @@ class AsyncHTTPClient:
         except ImportError:
             raise ImportError("aiohttp is required for async HTTP operations")
     
-    def session(self, **kwargs) -> 'aiohttp.ClientSession':
+    def session(self, base_url: str = None, **kwargs) -> 'aiohttp.ClientSession':
         """Create an aiohttp session with proper SSL configuration."""
         try:
             import aiohttp
             # Use our connector if not provided
             if 'connector' not in kwargs:
-                kwargs['connector'] = self.get_connector()
+                kwargs['connector'] = self.get_connector(base_url)
             
             # Add default headers if not provided
             if 'headers' not in kwargs:
@@ -233,9 +260,9 @@ def request(url: str, method: str = "GET", timeout: Optional[float] = None,
     return get_http_client().request(url, method, timeout, headers, data)
 
 
-async def async_session(**kwargs) -> 'aiohttp.ClientSession':
+async def async_session(base_url: str = None, **kwargs) -> 'aiohttp.ClientSession':
     """Create an async HTTP session with unified TLS configuration."""
-    return await get_async_http_client().session(**kwargs)
+    return get_async_http_client().session(base_url=base_url, **kwargs)
 
 
 def get_ssl_context() -> Optional[ssl.SSLContext]:

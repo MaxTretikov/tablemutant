@@ -40,21 +40,21 @@ class ModelSelectionWindow:
         
     def show(self):
         """Show the model selection window."""
-        self.window = toga.Window(title=f"Select Model - {self.model_identifier}")
+        self.window = toga.Window(title=f"Model Selection - {self.model_identifier}")
         self.window.on_close = self.on_close
         
         content_box = toga.Box(style=Pack(direction=COLUMN, margin=15))
         
         # Title
         title = toga.Label(
-            f"Available GGUF Models for {self.model_identifier}",
+            f"Model Selection for {self.model_identifier}",
             style=Pack(margin=(0, 0, 15, 0), font_size=14, font_weight='bold')
         )
         content_box.add(title)
         
         # Info text
         info_text = toga.Label(
-            "Select a model variant to download. Smaller models are faster but less capable.",
+            "Select a model variant. Downloaded versions are marked with [downloaded]. Smaller models are faster but less capable.",
             style=Pack(margin=(0, 0, 10, 0), font_size=11, color='#666666')
         )
         content_box.add(info_text)
@@ -71,7 +71,7 @@ class ModelSelectionWindow:
             
             # Check if file is already downloaded
             is_downloaded = self._is_file_downloaded(filename, is_grouped_or_parts, local_files)
-            status_str = " ✓ Downloaded" if is_downloaded else ""
+            status_str = " [downloaded]" if is_downloaded else ""
             
             # Add part count for grouped files
             if isinstance(is_grouped_or_parts, list):  # This is a grouped file with parts list
@@ -84,7 +84,8 @@ class ModelSelectionWindow:
         # Selection list
         self.selection_list = toga.Selection(
             items=selection_data,
-            style=Pack(height=300, width=600, margin=(0, 0, 15, 0))
+            style=Pack(height=300, width=600, margin=(0, 0, 15, 0)),
+            on_change=self.on_selection_change
         )
         content_box.add(self.selection_list)
         
@@ -128,63 +129,84 @@ class ModelSelectionWindow:
         
         self.window.content = content_box
         self.window.show()
+        
+        # Update button text based on initial selection (if any)
+        self.update_button_text()
+    
+    def on_selection_change(self, widget):
+        """Handle selection change to update button text."""
+        self.update_button_text()
+    
+    def update_button_text(self):
+        """Update the button text based on whether the selected model is downloaded."""
+        if self.selection_list.value is None:
+            self.download_button.text = "Select a Model"
+            self.download_button.enabled = False
+            return
+        
+        # Check if selected model is downloaded
+        selected_display_text = self.selection_list.value
+        if "[downloaded]" in selected_display_text:
+            self.download_button.text = "Use Model"
+        else:
+            self.download_button.text = "Download Model"
+        
+        self.download_button.enabled = True
     
     async def download_selected(self, widget):
-        """Download the selected model."""
+        """Handle the selected model - either use existing or download new."""
         if self.selection_list.value is None:
             await self.app.main_window.dialog(
                 toga.ErrorDialog(
                     title="No Selection",
-                    message="Please select a model to download."
+                    message="Please select a model first."
                 )
             )
             return
         
         # Check if selected model is already downloaded
         selected_display_text = self.selection_list.value
-        if "✓ Downloaded" in selected_display_text:
-            # Model is already downloaded, ask user if they want to use it or re-download
-            dialog_response = await self.app.main_window.dialog(
-                toga.QuestionDialog(
-                    title="Model Already Downloaded",
-                    message="This model is already downloaded. Would you like to use the existing file or re-download it?"
-                )
-            )
+        if "[downloaded]" in selected_display_text:
+            # Model is already downloaded, use it directly
+            filename = selected_display_text.split("(")[0].strip()  # Extract filename before size info
+            models_dir = Path(self.app.settings_manager.get('models_directory'))
             
-            if dialog_response:  # User clicked "Yes" to use existing
-                # Find the local path and return it
-                filename = selected_display_text.split("(")[0].strip()  # Extract filename before size info
-                models_dir = Path(self.app.settings_manager.get('models_directory'))
+            if '/' in self.model_identifier and not self.model_identifier.startswith('http'):
+                parts = self.model_identifier.split('/')
+                repo_id = '/'.join(parts[:2])
+                local_repo_dir = models_dir / repo_id.replace('/', '_')
+                local_path = local_repo_dir / filename.replace('.gguf', '') if not filename.endswith('.gguf') else local_repo_dir / filename
                 
-                if '/' in self.model_identifier and not self.model_identifier.startswith('http'):
-                    parts = self.model_identifier.split('/')
-                    repo_id = '/'.join(parts[:2])
-                    local_repo_dir = models_dir / repo_id.replace('/', '_')
-                    local_path = local_repo_dir / filename.replace('.gguf', '') if not filename.endswith('.gguf') else local_repo_dir / filename
-                    
-                    if local_path.suffix != '.gguf':
-                        # Find the actual .gguf file
-                        gguf_files = list(local_repo_dir.glob(f"{filename}*.gguf"))
-                        if gguf_files:
-                            local_path = gguf_files[0]
-                else:
-                    local_path = models_dir / filename
-                
-                if local_path.exists():
-                    await self.app.main_window.dialog(
-                        toga.InfoDialog(
-                            title="Using Existing Model",
-                            message="Using the existing downloaded model."
-                        )
+                if local_path.suffix != '.gguf':
+                    # Find the actual .gguf file
+                    gguf_files = list(local_repo_dir.glob(f"{filename}*.gguf"))
+                    if gguf_files:
+                        local_path = gguf_files[0]
+            else:
+                local_path = models_dir / filename
+            
+            if local_path.exists():
+                await self.app.main_window.dialog(
+                    toga.InfoDialog(
+                        title="Using Existing Model",
+                        message="Using the existing downloaded model."
                     )
-                    
-                    if self.parent_callback:
-                        await self.parent_callback(str(local_path))
-                    
-                    self.window.close()
-                    self.window = None
-                    return
-            # If user chose "No" (re-download), continue with normal download process
+                )
+                
+                if self.parent_callback:
+                    await self.parent_callback(str(local_path))
+                
+                self.window.close()
+                self.window = None
+                return
+            else:
+                # File doesn't exist, treat as download
+                await self.app.main_window.dialog(
+                    toga.ErrorDialog(
+                        title="File Not Found",
+                        message="The downloaded model file could not be found. It will be re-downloaded."
+                    )
+                )
         
         # Get selected index and filename/parts
         # The selected value includes metadata like size, so we need to match it properly
@@ -210,7 +232,8 @@ class ModelSelectionWindow:
                 else:
                     display_text = f"{filename}{size_str}"
                 
-                if display_text == selected_display_text:
+                # Check both with and without [downloaded] status
+                if display_text == selected_display_text or f"{display_text} [downloaded]" == selected_display_text:
                     selected_index = i
                     break
         

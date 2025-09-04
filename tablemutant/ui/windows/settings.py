@@ -478,102 +478,32 @@ class SettingsWindow:
         self.check_button.enabled = False
         self.check_button.text = "Checking..."
         
-        # Check if it's a HuggingFace repo without specific file
-        if '/' in model_identifier and not model_identifier.startswith('http'):
-            parts = model_identifier.split('/')
-            if len(parts) == 2:  # Only repo, no specific file
-                # This MUST use the dropdown - continue with normal flow to show selection window
-                pass
-            elif len(parts) > 2 and not parts[-1].endswith('.gguf'):
-                # Has path but not a GGUF file
-                self.check_button.enabled = True
-                self.check_button.text = "Check"
-                await self.app.main_window.dialog(
-                    toga.ErrorDialog(
-                        title="Invalid Model Specification",
-                        message="When specifying a file in a HuggingFace repo, it must be a .gguf file."
-                    )
-                )
-                return
-        
-        # Check if it's a local file
-        if os.path.exists(model_identifier):
-            # Re-enable check button
-            self.check_button.enabled = True
-            self.check_button.text = "Check"
-            
-            if model_identifier.endswith('.gguf'):
-                await self.app.main_window.dialog(
-                    toga.InfoDialog(
-                        title="Model Found",
-                        message=f"Local model found: {os.path.basename(model_identifier)}"
-                    )
-                )
-            else:
-                await self.app.main_window.dialog(
-                    toga.ErrorDialog(
-                        title="Invalid Model",
-                        message="Model file must be in GGUF format"
-                    )
-                )
-            return
-        
-        # Show download section
-        self.download_section.style.visibility = 'visible'
-        self.download_status.text = "Checking model availability..."
-        self.download_progress.value = 0
-        
         try:
-            # Check if model exists and find GGUF files
-            needs_download, available_files, local_path = await self._check_model_availability(model_identifier)
-            
-            if not needs_download:
-                # Re-enable check button
-                self.check_button.enabled = True
-                self.check_button.text = "Check"
-                
-                await self.app.main_window.dialog(
-                    toga.InfoDialog(
-                        title="Model Available",
-                        message=f"Model '{model_identifier}' is already available locally.\n\nPath: {local_path}"
-                    )
-                )
-                self.download_section.style.visibility = 'hidden'
+            # Check if it's a local file path
+            if os.path.exists(model_identifier):
+                await self._handle_local_file_path(model_identifier)
                 return
             
-            if not available_files:
-                # Re-enable check button
-                self.check_button.enabled = True
-                self.check_button.text = "Check"
-                
-                await self.app.main_window.dialog(
-                    toga.ErrorDialog(
-                        title="Model Not Found",
-                        message=f"No GGUF files found for '{model_identifier}'"
-                    )
-                )
-                self.download_section.style.visibility = 'hidden'
+            # Check if it's a HuggingFace ID (contains '/' but not a URL)
+            if '/' in model_identifier and not model_identifier.startswith('http'):
+                await self._handle_huggingface_id(model_identifier)
                 return
-                
-            # Hide download section while showing selection
-            self.download_section.style.visibility = 'hidden'
             
-            # Get file sizes for better selection
-            available_files_with_sizes = await self._get_file_sizes(model_identifier, available_files)
+            # Check if it's a URL
+            if model_identifier.startswith('http'):
+                await self._handle_url_model(model_identifier)
+                return
             
-            # Re-enable check button after successful check
+            # Invalid format
             self.check_button.enabled = True
             self.check_button.text = "Check"
-            
-            # Show model selection window
-            selection_window = ModelSelectionWindow(
-                self.app, 
-                available_files_with_sizes, 
-                model_identifier, 
-                self._on_model_selected
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(
+                    title="Invalid Model Identifier",
+                    message="Please enter a valid HuggingFace ID (e.g., 'user/repo'), local file path, or URL."
+                )
             )
-            selection_window.show()
-                
+            
         except Exception as e:
             # Re-enable check button on error
             self.check_button.enabled = True
@@ -587,6 +517,222 @@ class SettingsWindow:
             )
             self.download_section.style.visibility = 'hidden'
     
+    async def _handle_local_file_path(self, model_identifier):
+        """Handle validation of local file paths."""
+        # Re-enable check button
+        self.check_button.enabled = True
+        self.check_button.text = "Check"
+        
+        if not model_identifier.endswith('.gguf'):
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(
+                    title="Invalid Model",
+                    message="Model file must be in GGUF format (.gguf extension)"
+                )
+            )
+            return
+        
+        # Check if this file is associated with a HuggingFace ID
+        huggingface_id = self._detect_huggingface_association(model_identifier)
+        
+        if huggingface_id:
+            # Give user option to continue with path or open model selection
+            result = await self.app.main_window.dialog(
+                toga.QuestionDialog(
+                    title="HuggingFace Model Detected",
+                    message=f"This file appears to be from HuggingFace repository: {huggingface_id}\n\n"
+                           f"Would you like to:\n"
+                           f"• Continue with the existing file path, or\n"
+                           f"• Open model selection to choose another version?\n\n"
+                           f"Click 'Yes' to continue with current path, 'No' to open model selection."
+                )
+            )
+            
+            if result:  # User chose to continue with existing path
+                await self.app.main_window.dialog(
+                    toga.InfoDialog(
+                        title="Model Validated",
+                        message=f"Using local model: {os.path.basename(model_identifier)}"
+                    )
+                )
+            else:  # User chose to open model selection
+                await self._handle_huggingface_id(huggingface_id)
+        else:
+            # No HuggingFace association detected, just validate the file
+            await self.app.main_window.dialog(
+                toga.InfoDialog(
+                    title="Model Validated",
+                    message=f"Local model found: {os.path.basename(model_identifier)}"
+                )
+            )
+    
+    async def _handle_huggingface_id(self, model_identifier):
+        """Handle HuggingFace model IDs by opening model selection window."""
+        parts = model_identifier.split('/')
+        if len(parts) > 2 and not parts[-1].endswith('.gguf'):
+            # Has path but not a GGUF file
+            self.check_button.enabled = True
+            self.check_button.text = "Check"
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(
+                    title="Invalid Model Specification",
+                    message="When specifying a file in a HuggingFace repo, it must be a .gguf file."
+                )
+            )
+            return
+        
+        # Show download section
+        self.download_section.style.visibility = 'visible'
+        self.download_status.text = "Checking model availability..."
+        self.download_progress.value = 0
+        
+        try:
+            # Check if model exists and find GGUF files
+            needs_download, available_files, local_path = await self._check_model_availability(model_identifier)
+            
+            # Hide download section while showing selection
+            self.download_section.style.visibility = 'hidden'
+            
+            if not available_files:
+                # Re-enable check button
+                self.check_button.enabled = True
+                self.check_button.text = "Check"
+                
+                await self.app.main_window.dialog(
+                    toga.ErrorDialog(
+                        title="Model Not Found",
+                        message=f"No GGUF files found for '{model_identifier}'"
+                    )
+                )
+                return
+            
+            # Get file sizes for better selection
+            available_files_with_sizes = await self._get_file_sizes(model_identifier, available_files)
+            
+            # Re-enable check button after successful check
+            self.check_button.enabled = True
+            self.check_button.text = "Check"
+            
+            # Show model selection window (now renamed to be more general)
+            selection_window = ModelSelectionWindow(
+                self.app,
+                available_files_with_sizes,
+                model_identifier,
+                self._on_model_selected
+            )
+            selection_window.show()
+                
+        except Exception as e:
+            # Re-enable check button on error
+            self.check_button.enabled = True
+            self.check_button.text = "Check"
+            self.download_section.style.visibility = 'hidden'
+            raise e
+    
+    async def _handle_url_model(self, model_identifier):
+        """Handle direct URL models."""
+        parsed = urllib.parse.urlparse(model_identifier)
+        filename = os.path.basename(parsed.path)
+        
+        if not filename.endswith('.gguf'):
+            self.check_button.enabled = True
+            self.check_button.text = "Check"
+            await self.app.main_window.dialog(
+                toga.ErrorDialog(
+                    title="Invalid URL",
+                    message="URL must point to a GGUF file (.gguf extension)"
+                )
+            )
+            return
+        
+        # Check if already downloaded locally
+        models_dir = Path(self.app.settings_manager.get('models_directory'))
+        local_path = models_dir / filename
+        
+        if local_path.exists():
+            self.check_button.enabled = True
+            self.check_button.text = "Check"
+            await self.app.main_window.dialog(
+                toga.InfoDialog(
+                    title="Model Available",
+                    message=f"Model is already downloaded locally: {filename}"
+                )
+            )
+            return
+        
+        # Show download section and proceed with availability check
+        self.download_section.style.visibility = 'visible'
+        self.download_status.text = "Checking URL accessibility..."
+        self.download_progress.value = 0
+        
+        try:
+            needs_download, available_files, local_path = await self._check_model_availability(model_identifier)
+            
+            # Hide download section while showing selection
+            self.download_section.style.visibility = 'hidden'
+            
+            if not available_files:
+                self.check_button.enabled = True
+                self.check_button.text = "Check"
+                await self.app.main_window.dialog(
+                    toga.ErrorDialog(
+                        title="URL Not Accessible",
+                        message=f"Could not access the URL: {model_identifier}"
+                    )
+                )
+                return
+            
+            # Get file sizes for better selection
+            available_files_with_sizes = await self._get_file_sizes(model_identifier, available_files)
+            
+            # Re-enable check button after successful check
+            self.check_button.enabled = True
+            self.check_button.text = "Check"
+            
+            # Show model selection window
+            selection_window = ModelSelectionWindow(
+                self.app,
+                available_files_with_sizes,
+                model_identifier,
+                self._on_model_selected
+            )
+            selection_window.show()
+                
+        except Exception as e:
+            self.check_button.enabled = True
+            self.check_button.text = "Check"
+            self.download_section.style.visibility = 'hidden'
+            raise e
+    
+    def _detect_huggingface_association(self, file_path):
+        """Detect if a local file is associated with a HuggingFace repository."""
+        try:
+            path_obj = Path(file_path)
+            models_dir = Path(self.app.settings_manager.get('models_directory'))
+            
+            # Check if the file is within the models directory
+            try:
+                relative_path = path_obj.relative_to(models_dir)
+            except ValueError:
+                # File is not within models directory
+                return None
+            
+            # Check if it's in a subdirectory that looks like a HuggingFace repo
+            parts = relative_path.parts
+            if len(parts) >= 2:
+                # First part should be the repo name with underscores instead of slashes
+                repo_dir = parts[0]
+                if '_' in repo_dir:
+                    # Convert back to HuggingFace format
+                    potential_repo = repo_dir.replace('_', '/')
+                    # Basic validation: should have at least one slash
+                    if '/' in potential_repo:
+                        return potential_repo
+            
+            return None
+        except Exception:
+            return None
+
     async def _on_model_selected(self, model_identifier_or_path, selected_filename_or_parts=None):
         """Callback when a model is selected from the selection window."""
         if selected_filename_or_parts is None:
@@ -1026,37 +1172,31 @@ class SettingsWindow:
             parts = model_identifier.split('/')
             repo_id = '/'.join(parts[:2])
             
-            # Check if already downloaded
-            local_repo_dir = models_dir / repo_id.replace('/', '_')
-            if local_repo_dir.exists():
-                gguf_files = list(local_repo_dir.glob('*.gguf'))
-                if gguf_files:
-                    # Validate local files for corruption
-                    corrupted_files = await self._check_model_corruption(repo_id, local_repo_dir, gguf_files)
-                    if corrupted_files:
-                        # Delete corrupted files
-                        for corrupted_file in corrupted_files:
-                            try:
-                                corrupted_file.unlink()
-                                logger.info("Deleted corrupted file: %s", corrupted_file)
-                            except Exception as e:
-                                logger.error("Error deleting corrupted file %s: %s", corrupted_file, e)
-                        
-                        # Re-check remaining files
-                        remaining_files = [f for f in gguf_files if f not in corrupted_files]
-                        if not remaining_files:
-                            logger.warning("All local files for %s were corrupted and deleted. Re-downloading required.", repo_id)
-                        else:
-                            return False, [f.name for f in remaining_files], str(local_repo_dir)
-                    else:
-                        return False, [f.name for f in gguf_files], str(local_repo_dir)
-            
-            # Check HuggingFace repository
+            # Always fetch remote files to show ALL available models
             try:
                 from huggingface_hub import list_repo_files
                 files = list_repo_files(repo_id)
                 gguf_files = [f for f in files if f.endswith('.gguf')]
+                
+                # Check if we have local files and validate them
+                local_repo_dir = models_dir / repo_id.replace('/', '_')
+                if local_repo_dir.exists():
+                    local_gguf_files = list(local_repo_dir.glob('*.gguf'))
+                    if local_gguf_files:
+                        # Validate local files for corruption
+                        corrupted_files = await self._check_model_corruption(repo_id, local_repo_dir, local_gguf_files)
+                        if corrupted_files:
+                            # Delete corrupted files
+                            for corrupted_file in corrupted_files:
+                                try:
+                                    corrupted_file.unlink()
+                                    logger.info("Deleted corrupted file: %s", corrupted_file)
+                                except Exception as e:
+                                    logger.error("Error deleting corrupted file %s: %s", corrupted_file, e)
+                
+                # Return all remote files - the ModelSelectionWindow will determine which are downloaded
                 return True, gguf_files, None
+                
             except ImportError:
                 raise Exception("huggingface-hub not installed. Please install dependencies.")
             except Exception as e:

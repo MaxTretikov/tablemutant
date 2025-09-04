@@ -1,3 +1,4 @@
+# processing.py
 #!/usr/bin/env python3
 """
 ProcessingWindow - Handles showing progress during generation processing
@@ -6,9 +7,10 @@ ProcessingWindow - Handles showing progress during generation processing
 import asyncio
 import json
 import os
-import threading
 import time
 import logging
+import re
+import threading
 from datetime import timedelta
 from concurrent.futures import ThreadPoolExecutor
 from collections import deque
@@ -21,7 +23,6 @@ import polars as pl
 
 from tablemutant.core.tls_config import get_http_client
 
-# Get logger for this module
 logger = logging.getLogger('tablemutant.ui.windows.processing')
 
 
@@ -35,70 +36,52 @@ class ProcessingWindow:
         self.tokens_info = None
         self.prompt_header = None
         self.prompt_display = None
+        self.live_output_header = None
+        self.live_output_display = None
         self.cancel_button = None
         self.processing_cancelled = False
-        self.executor = ThreadPoolExecutor(max_workers=1)
+
+        # Dedicated thread pools prevent starvation in packaged apps
+        cpu = os.cpu_count() or 4
+        self.io_executor = ThreadPoolExecutor(
+            max_workers=max(4, cpu),
+            thread_name_prefix="tm-io"
+        )
+        # Model work is now handled by a single long‑lived thread with streaming updates
+        self.model_thread = None
+
         self.total_tokens = 0
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
         self.generation_start_time = None
-        self.token_history = deque(maxlen=10)
-        self.calibration_tokens_per_sec = 0
-        
+        self.token_history = deque(maxlen=10)  # recent completion token speeds
+
+        # Per‑definition first‑row metrics used for ETA
+        self._eta_ratio_by_def = {}          # def_key -> output_tokens/input_tokens
+        self._eta_tps_by_def = {}            # def_key -> tokens/sec measured from first row
+
+        # Completion synchronization with the worker thread
+        self._ui_loop = None
+        self._worker_done_event = None
+        self._worker_result = None
+
     def create_content(self, preview_only=True):
-        """Create and return the processing window content."""
         self.process_box = toga.Box(style=Pack(direction=COLUMN, margin=10))
-        
-        # Title
         title = toga.Label(
             "Processing..." if not preview_only else "Generating Preview...",
             style=Pack(margin=(0, 0, 20, 0), font_size=16, font_weight='bold')
         )
-        
-        # Status
-        self.process_status = toga.Label(
-            "Initializing model...",
-            style=Pack(margin=(0, 0, 10, 0))
-        )
-        
-        # Progress bar
-        self.process_progress = toga.ProgressBar(
-            max=100,
-            style=Pack(width=500, margin=(0, 0, 10, 0))
-        )
-        
-        # Time estimate
-        self.time_estimate = toga.Label(
-            "Estimating time...",
-            style=Pack(margin=(0, 0, 10, 0))
-        )
-        
-        # Tokens info
-        self.tokens_info = toga.Label(
-            "Tokens: 0 | Speed: -- tokens/sec",
-            style=Pack(margin=(0, 0, 20, 0))
-        )
-        
-        # Prompt header
-        self.prompt_header = toga.Label(
-            "Current Prompt:",
-            style=Pack(margin=(0, 0, 5, 0), font_size=14, font_weight='bold')
-        )
-        
-        # Prompt display
-        self.prompt_display = toga.MultilineTextInput(
-            readonly=True,
-            placeholder="Current prompt will appear here...",
-            style=Pack(width=500, height=200, margin=(0, 0, 20, 0))
-        )
-        
-        # Cancel button
-        self.cancel_button = toga.Button(
-            "Cancel",
-            on_press=self.cancel_processing,
-            style=Pack(margin=5)
-        )
-        
+        self.process_status = toga.Label("Initializing model...", style=Pack(margin=(0, 0, 10, 0)))
+        self.process_progress = toga.ProgressBar(max=100, style=Pack(width=500, margin=(0, 0, 10, 0)))
+        self.time_estimate = toga.Label("Estimating time...", style=Pack(margin=(0, 0, 10, 0)))
+        self.tokens_info = toga.Label("Tokens: 0 | Speed: -- tokens/sec", style=Pack(margin=(0, 0, 20, 0)))
+        self.prompt_header = toga.Label("Current Prompt:", style=Pack(margin=(0, 0, 5, 0), font_size=14, font_weight='bold'))
+        self.prompt_display = toga.MultilineTextInput(readonly=True, placeholder="Current prompt will appear here...", style=Pack(width=500, height=200, margin=(0, 0, 20, 0)))
+        # New: live streamed output view placed under the prompt
+        self.live_output_header = toga.Label("Live Output:", style=Pack(margin=(0, 0, 5, 0), font_size=14, font_weight='bold'))
+        self.live_output_display = toga.MultilineTextInput(readonly=True, placeholder="Model tokens will stream here", style=Pack(width=500, height=220, margin=(0, 0, 20, 0)))
+        self.cancel_button = toga.Button("Cancel", on_press=self.cancel_processing, style=Pack(margin=5))
+
         self.process_box.add(title)
         self.process_box.add(self.process_status)
         self.process_box.add(self.process_progress)
@@ -106,13 +89,12 @@ class ProcessingWindow:
         self.process_box.add(self.tokens_info)
         self.process_box.add(self.prompt_header)
         self.process_box.add(self.prompt_display)
+        self.process_box.add(self.live_output_header)
+        self.process_box.add(self.live_output_display)
         self.process_box.add(self.cancel_button)
-        
         return self.process_box
-    
+
     async def update_progress(self, value, status_text=None, time_text=None, tokens_text=None):
-        """Update progress bar and labels in a thread-safe manner."""
-        # Update the GUI elements directly since we're in an async context
         self.process_progress.value = value
         if status_text:
             self.process_status.text = status_text
@@ -120,93 +102,71 @@ class ProcessingWindow:
             self.time_estimate.text = time_text
         if tokens_text:
             self.tokens_info.text = tokens_text
-        
-        # Give the GUI event loop a chance to process the updates
         await asyncio.sleep(0.01)
-    
+
     async def update_prompt_display(self, prompt_text, header_text=None):
-        """Update the prompt display with the current prompt and optional header."""
         if self.prompt_display:
             self.prompt_display.value = prompt_text
         if header_text and self.prompt_header:
             self.prompt_header.text = header_text
         await asyncio.sleep(0.01)
-    
-    def format_dspy_prompt(self, signature_class, inputs):
-        """Format a DSPy prompt for display based on signature and inputs."""
-        prompt_lines = []
-        
-        # Add signature documentation
-        if hasattr(signature_class, '__doc__') and signature_class.__doc__:
-            prompt_lines.append(f"Task: {signature_class.__doc__.strip()}")
-            prompt_lines.append("")
-        
-        # Add input fields
-        for field_name, field in signature_class.__annotations__.items():
-            if hasattr(field, 'desc') and field.desc:
-                field_desc = field.desc
-            else:
-                field_desc = field_name
-            
-            # Check if this is an input field (not output)
-            if field_name in inputs:
-                value = inputs[field_name]
-                display_value = str(value)
-                # if isinstance(value, str) and len(value) > 200:
-                #     # Truncate very long values for display
-                #     display_value = value[:200] + "..."
-                # else:
-                #     display_value = str(value)
-                
-                prompt_lines.append(f"{field_desc}:")
-                prompt_lines.append(display_value)
-                prompt_lines.append("")
-        
-        # Add expected output format
-        output_fields = []
-        for field_name, field in signature_class.__annotations__.items():
-            if field_name not in inputs:  # This is an output field
-                if hasattr(field, 'desc') and field.desc:
-                    output_fields.append(f"- {field_name}: {field.desc}")
-                else:
-                    output_fields.append(f"- {field_name}")
-        
-        if output_fields:
-            prompt_lines.append("Expected Output:")
-            prompt_lines.extend(output_fields)
-            prompt_lines.append("")
-        
-        prompt_lines.append("Please generate the requested output based on the input data above.")
-        
-        return "\n".join(prompt_lines)
-    
-    async def process_generation(self, definitions=None, preview_only=True):
-        """Process the generation task."""
-        try:
-            # Initialize model using settings
-            await self.update_progress(10, "Setting up model...")
-            
-            loop = asyncio.get_event_loop()
 
-            dspy.configure_cache(
-                enable_disk_cache=False,
-                enable_memory_cache=False,
-                enable_litellm_cache=False
-            )
-            
-            # Check if server is already running at configured host
+    async def reset_live_output(self, title_suffix=""):
+        if self.live_output_header:
+            self.live_output_header.text = f"Live Output{title_suffix}"
+        if self.live_output_display:
+            self.live_output_display.value = ""
+        await asyncio.sleep(0.01)
+
+    async def append_live_output(self, text):
+        if self.live_output_display:
+            self.live_output_display.value = (self.live_output_display.value or "") + text
+        await asyncio.sleep(0.0)
+
+    def _post_ui(self, coro):
+        """Schedule a coroutine onto the UI loop from any thread."""
+        if self._ui_loop is not None:
+            asyncio.run_coroutine_threadsafe(coro, self._ui_loop)
+
+    def format_dspy_prompt(self, signature_class, inputs):
+        lines = []
+        if getattr(signature_class, '__doc__', None):
+            lines.append(f"Task: {signature_class.__doc__.strip()}")
+            lines.append("")
+        for name, field in signature_class.__annotations__.items():
+            desc = getattr(field, 'desc', name)
+            if name in inputs:
+                lines.append(f"{desc}:")
+                lines.append(str(inputs[name]))
+                lines.append("")
+        outs = []
+        for name, field in signature_class.__annotations__.items():
+            if name not in inputs:
+                outs.append(f"- {name}: {getattr(field, 'desc', name)}")
+        if outs:
+            lines.append("Expected Output:")
+            lines.extend(outs)
+            lines.append("")
+        lines.append("Please generate the requested output based on the input data above.")
+        return "\n".join(lines)
+
+    async def process_generation(self, definitions=None, preview_only=True):
+        try:
+            await self.update_progress(10, "Setting up model...")
+            loop = asyncio.get_running_loop()
+            self._ui_loop = loop
+
+            dspy.configure_cache(enable_disk_cache=False, enable_memory_cache=False, enable_litellm_cache=False)
+
+            # Liveness probe off the UI loop
             server_host = self.app.settings_manager.get('server_host')
-            logger.debug("Checking server at %s", server_host)
             auth_token = self.app.settings_manager.get('auth_token')
             models_url = (server_host.rstrip('/')) + '/v1/models'
-            logger.debug("Models URL: %s", models_url)
 
-            # Determine if host is local to customize status text
             def _is_local(url: str) -> bool:
                 try:
                     from urllib.parse import urlparse
-                    parsed = urlparse(url)
-                    host = (parsed.hostname or '').lower()
+                    host = (urlparse(url).hostname or '').lower()
                     return host in ('localhost', '127.0.0.1', '::1')
                 except Exception:
                     return True
@@ -214,702 +174,197 @@ class ProcessingWindow:
             headers = {}
             if not _is_local(server_host) and auth_token:
                 headers['Authorization'] = f'Bearer {auth_token}'
-            try:
-                http_client = get_http_client()
-                with http_client.urlopen(models_url, timeout=2, headers=headers) as response:
-                    if response.status == 200:
-                        status_txt = "Server already running!" if not _is_local(server_host) else "Llamafile server already running!"
-                        await self.update_progress(40, status_txt)
-                        self.app.server_was_running = True
-                    else:
-                        self.app.server_was_running = False
-            except Exception as e:
-                logger.debug("Server check failed: %s", e)
+
+            def _probe(url, hdrs):
+                try:
+                    with get_http_client().urlopen(url, timeout=2, headers=hdrs) as resp:
+                        return resp.status
+                except Exception:
+                    return None
+
+            status = await loop.run_in_executor(self.io_executor, _probe, models_url, headers)
+            if status == 200:
+                await self.update_progress(40, "Server already running!" if not _is_local(server_host) else "Llamafile server already running!")
+                self.app.server_was_running = True
+            else:
                 self.app.server_was_running = False
-            
-            # Always configure DSPy in the main thread, even if server was already running
+
             if self.app.server_was_running:
                 await self.update_progress(45, "Configuring DSPy...")
                 try:
                     self.app.tm.setup_dspy_configuration()
                     await self.update_progress(50, "DSPy configuration complete!")
                 except Exception as e:
-                    # If DSPy configuration fails due to thread conflicts, try to reset and reconfigure
-                    logger.warning("Initial DSPy configuration failed: %s", e)
                     await self.update_progress(46, "Retrying DSPy configuration...")
                     try:
-                        # Create a fresh column generator instance to avoid thread conflicts
                         from tablemutant.core.column_generator import ColumnGenerator
                         self.app.tm.column_generator = ColumnGenerator()
                         self.app.tm.setup_dspy_configuration()
                         await self.update_progress(50, "DSPy configuration complete!")
                     except Exception as e2:
                         raise Exception(f"Failed to configure DSPy: {e2}")
-            
-            if not self.app.server_was_running:
-                # If host is local, we will start llamafile. If remote, skip starting server.
-                server_host = self.app.settings_manager.get('server_host')
-                logger.debug("Processing server_host: %s", server_host)
-                
-                def _is_local(url: str) -> bool:
-                    try:
-                        from urllib.parse import urlparse
-                        parsed = urlparse(url)
-                        host = (parsed.hostname or '').lower()
-                        result = host in ('localhost', '127.0.0.1', '::1')
-                        logger.debug("_is_local check for %s -> host: %s, result: %s", url, host, result)
-                        return result
-                    except Exception as e:
-                        logger.debug("_is_local failed with error: %s", e)
-                        return True
 
-                server_host = self.app.settings_manager.get('server_host')
+            if not self.app.server_was_running:
                 if _is_local(server_host):
                     await self.update_progress(20, "Setting up model and local server...")
-                    
+
                     def setup_model_and_server():
-                        logger.debug("Starting setup_model_and_server")
-                        result = self.app.tm.setup_model_and_server_only()
-                        logger.debug("setup_model_and_server completed")
-                        return result
-                    
+                        return self.app.tm.setup_model_and_server_only()
+
                     try:
-                        await loop.run_in_executor(self.executor, setup_model_and_server)
+                        await loop.run_in_executor(self.io_executor, setup_model_and_server)
                         await self.update_progress(40, "Model and server setup complete!")
                     except Exception as e:
-                        logger.debug("setup_model_and_server failed: %s", e)
-                        import traceback
-                        traceback.print_exc()
                         raise Exception(f"Failed to setup model: {e}")
                 else:
                     await self.update_progress(40, "Using remote server endpoint...")
 
-                # Configure DSPy in the main thread to avoid thread conflicts
                 await self.update_progress(45, "Configuring DSPy...")
                 try:
-                    logger.debug("Starting setup_dspy_configuration")
                     self.app.tm.setup_dspy_configuration()
-                    logger.debug("setup_dspy_configuration completed")
                     await self.update_progress(50, "DSPy configuration complete!")
-                except Exception as e:
-                    # If DSPy configuration fails due to thread conflicts, try to reset and reconfigure
-                    logger.warning("Initial DSPy configuration failed: %s", e)
+                except Exception:
                     await self.update_progress(46, "Retrying DSPy configuration...")
-                    try:
-                        # Create a fresh column generator instance to avoid thread conflicts
-                        from tablemutant.core.column_generator import ColumnGenerator
-                        logger.debug("Creating fresh ColumnGenerator instance")
-                        self.app.tm.column_generator = ColumnGenerator()
-                        logger.debug("Starting retry setup_dspy_configuration")
-                        self.app.tm.setup_dspy_configuration()
-                        logger.debug("Retry setup_dspy_configuration completed")
-                        await self.update_progress(50, "DSPy configuration complete!")
-                    except Exception as e2:
-                        logger.debug("Retry DSPy configuration failed: %s", e2)
-                        import traceback
-                        traceback.print_exc()
-                        raise Exception(f"Failed to configure DSPy: {e2}")
-            
+                    from tablemutant.core.column_generator import ColumnGenerator
+                    self.app.tm.column_generator = ColumnGenerator()
+                    self.app.tm.setup_dspy_configuration()
+                    await self.update_progress(50, "DSPy configuration complete!")
+
             if self.processing_cancelled:
                 return
-            
-            # Process rows - filter to only non-empty rows first
+
+            # Filter rows off the UI loop
             if preview_only:
-                # For preview, get the first N non-empty rows
-                df_to_process = self.get_non_empty_rows(self.app.current_df, self.app.preview_rows)
-                num_rows = len(df_to_process)
+                df_to_process = await loop.run_in_executor(self.io_executor, self.get_non_empty_rows, self.app.current_df, self.app.preview_rows)
             else:
-                # For full processing, get all non-empty rows
-                df_to_process = self.get_non_empty_rows(self.app.current_df, None)
-                num_rows = len(df_to_process)
-            
-            # Get source columns
+                df_to_process = await loop.run_in_executor(self.io_executor, self.get_non_empty_rows, self.app.current_df, None)
+            num_rows = len(df_to_process)
             source_column_names = [self.app.current_df.columns[i] for i in self.app.selected_columns]
-            
-            # Load RAG documents and prepare for semantic search
-            rag_embeddings_data = []  # Store embedding data for semantic search
-            
+
+            # Load RAG sources off the UI loop
+            rag_embeddings_data = []
             if self.app.rag_documents:
                 await self.update_progress(55, "Loading RAG documents...")
-                
                 for doc_path in self.app.rag_documents:
                     try:
-                        # Try to get cached embeddings first
-                        cached_result = await loop.run_in_executor(
-                            self.executor,
-                            self.app.tm.rag_processor.get_cached_embeddings,
-                            doc_path
-                        )
-                        
-                        if cached_result:
-                            text_chunks, embeddings, metadata = cached_result
-                            logger.info("Using cached embeddings for %s (%s chunks)", os.path.basename(doc_path), len(text_chunks))
-                            
-                            # Store embedding data for semantic search
-                            rag_embeddings_data.append({
-                                'path': doc_path,
-                                'chunks': text_chunks,
-                                'embeddings': embeddings,
-                                'metadata': metadata
-                            })
+                        cached = await loop.run_in_executor(self.io_executor, self.app.tm.rag_processor.get_cached_embeddings, doc_path)
+                        if cached:
+                            text_chunks, embeddings, metadata = cached
+                            rag_embeddings_data.append({'path': doc_path, 'chunks': text_chunks, 'embeddings': embeddings, 'metadata': metadata})
                         else:
-                            # Fallback: load raw text and create simple chunks
-                            logger.info("No cached embeddings found for %s, using raw text", os.path.basename(doc_path))
-                            doc_text = await loop.run_in_executor(
-                                self.executor,
-                                self.app.tm.rag_processor.load_rag_source,
-                                doc_path
-                            )
+                            doc_text = await loop.run_in_executor(self.io_executor, self.app.tm.rag_processor.load_rag_source, doc_path)
                             if doc_text:
-                                # Create simple chunks from raw text
-                                simple_chunks = doc_text.split('\n\n')  # Split by paragraphs
-                                simple_chunks = [chunk.strip() for chunk in simple_chunks if chunk.strip()]
-                                
-                                rag_embeddings_data.append({
-                                    'path': doc_path,
-                                    'chunks': simple_chunks,
-                                    'embeddings': None,  # No embeddings available
-                                    'metadata': {'fallback': True}
-                                })
-                                
+                                chunks = [c.strip() for c in doc_text.split('\n\n') if c.strip()]
+                                rag_embeddings_data.append({'path': doc_path, 'chunks': chunks, 'embeddings': None, 'metadata': {'fallback': True}})
                     except Exception as e:
                         logger.error("Error loading RAG document %s: %s", doc_path, e)
-                    
-                # Log embedding usage
-                if rag_embeddings_data:
-                    total_chunks = sum(len(data['chunks']) for data in rag_embeddings_data)
-                    embedded_docs = sum(1 for data in rag_embeddings_data if data['embeddings'] is not None)
-                    logger.info("Loaded %s documents with %s total chunks", len(rag_embeddings_data), total_chunks)
-                    logger.info("%s documents have embeddings for semantic search", embedded_docs)
-            
-            # Process each definition
-            all_new_columns = {}
-            total_operations = len(definitions) * num_rows
-            completed = 0
-            start_time = time.time()
+
+            # Kick off the streaming generation in a dedicated worker thread
+            total_operations = len(definitions) * max(0, num_rows)
             self.generation_start_time = time.time()
-            
-            # Do a calibration run to estimate tokens/sec before starting
-            await self.update_progress(60, "Calibrating generation speed...")
-            self.calibration_tokens_per_sec = await self.calibrate_generation_speed(loop)
-            
-            # Initial time estimate based on calibration
-            if self.calibration_tokens_per_sec > 0:
-                # Estimate tokens per operation (rough estimate)
-                estimated_tokens_per_op = 150  # Typical for a ChainOfThought response
-                estimated_total_tokens = estimated_tokens_per_op * total_operations
-                estimated_time = estimated_total_tokens / self.calibration_tokens_per_sec
-                initial_eta = timedelta(seconds=int(estimated_time))
-                await self.update_progress(
-                    60, 
-                    "Starting generation...", 
-                    f"Estimated time: ~{initial_eta} (based on {self.calibration_tokens_per_sec:.1f} tokens/sec)",
-                    self.calculate_tokens_text()
-                )
-            
-            for def_idx, defn in enumerate(definitions):
-                if self.processing_cancelled:
-                    break
-                
-                column_name = " - ".join(defn['headers'])
-                
-                # Generate values
-                new_values = []
-                for row_idx in range(num_rows):
-                    if self.processing_cancelled:
-                        break
-                    
-                    # Update status before generation
-                    status = f"Generating column: {column_name} (row {row_idx + 1}/{num_rows})"
-                    
-                    # Calculate progress
-                    progress = 50 + (completed / total_operations) * 50  # 50-100% range
-                    
-                    # Calculate time estimate
-                    elapsed = time.time() - start_time
-                    
-                    if completed > 0 and elapsed > 0:
-                        # Calculate rate based on completed operations
-                        operations_per_sec = completed / elapsed
-                        remaining_ops = total_operations - completed
-                        
-                        if operations_per_sec > 0:
-                            remaining_time = remaining_ops / operations_per_sec
-                            eta = timedelta(seconds=int(remaining_time))
-                            time_text = f"Remaining: ~{eta} ({operations_per_sec:.1f} ops/sec)"
-                        else:
-                            time_text = "Calculating time estimate..."
-                    elif self.token_history and self.calibration_tokens_per_sec > 0:
-                        # Use calibration data for initial estimate
-                        estimated_tokens_per_op = 150  # Rough estimate
-                        remaining_ops = total_operations - completed
-                        estimated_remaining_tokens = estimated_tokens_per_op * remaining_ops
-                        remaining_time = estimated_remaining_tokens / self.calibration_tokens_per_sec
-                        eta = timedelta(seconds=int(remaining_time))
-                        time_text = f"Remaining: ~{eta} (estimated)"
-                    else:
-                        time_text = "Calculating time estimate..."
-                    
-                    # Calculate tokens per second
-                    tokens_text = self.calculate_tokens_text()
-                    
-                    # Debug output
-                    logger.debug(
-                        "Progress update - completed: %s/%s, elapsed: %.1fs\n"
-                        "Token history length: %s, tokens: %s\n"
-                        "Time text: %s\n"
-                        "Tokens text: %s",
-                        completed, total_operations, elapsed,
-                        len(self.token_history), self.total_tokens,
-                        time_text, tokens_text
-                    )
-                    
-                    # Update UI before starting generation
-                    await self.update_progress(progress, status, time_text, tokens_text)
-                    
-                    # Prepare row data
-                    row_data = {}
-                    for col in source_column_names:
-                        try:
-                            value = df_to_process[col][row_idx]
-                            if value is None:
-                                row_data[col] = "null"
-                            elif isinstance(value, bytes):
-                                try:
-                                    row_data[col] = value.decode('utf-8', errors='replace')
-                                except:
-                                    row_data[col] = str(value)
-                            else:
-                                row_data[col] = str(value)
-                        except Exception as e:
-                            row_data[col] = ""
-                    
-                    # Generate value in executor thread
-                    def generate_value():
-                        # Create DSPy signature and generate
-                        class ColumnGeneratorSig(dspy.Signature):
-                            """Generate a new column value based on source data and instructions."""
-                            source_data = dspy.InputField(desc="Source column data from the current row")
-                            task_instructions = dspy.InputField(desc="Instructions for generating the new column")
-                            context = dspy.InputField(desc="Additional context from RAG documents")
-                            example = dspy.InputField(desc="Example showing input and expected output for reference", default="")
-                            new_value = dspy.OutputField(desc="The generated value for the new column")
-                        
-                        # Use semantic search to find relevant context for this specific row
-                        # Process each non-empty line within each field for semantic similarity search
-                        rag_context = ""
-                        if rag_embeddings_data:
-                            all_relevant_chunks = []
-                            
-                            for col_name, col_value in row_data.items():
-                                if col_value and col_value.strip() and col_value != "null":
-                                    # Split the field value by newlines to get individual lines
-                                    lines = col_value.split('\n')
-                                    
-                                    for line in lines:
-                                        line = line.strip()
-                                        if line:  # Only process non-empty lines
-                                            # Perform semantic similarity search for this line
-                                            relevant_chunks = self.app.tm.rag_processor.find_relevant_chunks(
-                                                line, rag_embeddings_data, top_k=5
-                                            )
-                                            if relevant_chunks:
-                                                all_relevant_chunks.extend(relevant_chunks)
-                            
-                            # Remove duplicates while preserving order
-                            seen = set()
-                            unique_chunks = []
-                            for chunk in all_relevant_chunks:
-                                if chunk not in seen:
-                                    seen.add(chunk)
-                                    unique_chunks.append(chunk)
-                            
-                            if unique_chunks:
-                                rag_context = "\n\nRelevant context from documents:\n" + "\n".join(unique_chunks)
-                                logger.debug("Using %s relevant chunks for row %s (from %s total matches)",
-                                           len(unique_chunks), row_idx + 1, len(all_relevant_chunks))
-                            else:
-                                logger.debug("No relevant chunks found for row %s", row_idx + 1)
-                        
-                        # Prepare generation inputs
-                        generation_inputs = {
-                            "source_data": json.dumps(row_data, indent=2, ensure_ascii=False),
-                            "task_instructions": defn['instructions'],
-                            "context": rag_context,
-                            "example": defn.get('example', '') or ""
-                        }
-                        
-                        generator = dspy.ChainOfThought(ColumnGeneratorSig)
-                        
-                        try:
-                            # Time the generation
-                            gen_start = time.time()
-                            
-                            result = generator(**generation_inputs)
-                            
-                            gen_time = time.time() - gen_start
-                            
-                            # Extract token usage from DSPy's language model
-                            # Check the configured LM directly for token usage
-                            tokens_extracted = False
-                            if hasattr(dspy.settings, 'lm') and hasattr(dspy.settings.lm, 'history'):
-                                history = dspy.settings.lm.history
-                                if history and len(history) > 0:
-                                    last_call = history[-1]
-                                    
-                                    if isinstance(last_call, dict):
-                                        # Try different ways to extract usage
-                                        usage = None
-                                        if 'usage' in last_call:
-                                            usage = last_call['usage']
-                                        elif 'response' in last_call and isinstance(last_call['response'], dict):
-                                            usage = last_call['response'].get('usage', {})
-                                        elif hasattr(last_call, 'usage'):
-                                            usage = last_call.usage
-                                        
-                                        if usage:
-                                            prompt_tokens = usage.get('prompt_tokens', 0)
-                                            completion_tokens = usage.get('completion_tokens', 0)
-                                            self.total_prompt_tokens += prompt_tokens
-                                            self.total_completion_tokens += completion_tokens
-                                            self.total_tokens = self.total_prompt_tokens + self.total_completion_tokens
-                                            tokens_extracted = True
-                                            
-                                            # Record token rate
-                                            if gen_time > 0 and completion_tokens > 0:
-                                                tokens_per_sec = completion_tokens / gen_time
-                                                self.token_history.append(tokens_per_sec)
-                            
-                            # Fallback: estimate tokens if we couldn't extract them
-                            if not tokens_extracted:
-                                # Estimate tokens based on response length and add to totals
-                                estimated_completion = max(10, len(str(result.new_value)) // 4)  # Rough estimate: 4 chars per token
-                                estimated_prompt = 100  # Rough estimate for prompt tokens
-                                self.total_prompt_tokens += estimated_prompt
-                                self.total_completion_tokens += estimated_completion
-                                self.total_tokens = self.total_prompt_tokens + self.total_completion_tokens
-                                
-                                if gen_time > 0:
-                                    tokens_per_sec = estimated_completion / gen_time
-                                    self.token_history.append(tokens_per_sec)
-                            
-                            return result.new_value
-                        except Exception as e:
-                            logger.error("Generation error: %s", e)
-                            return f"Error: {str(e)[:50]}..."
-                    
-                    # Prepare generation inputs for prompt display (using per-line semantic search)
-                    display_rag_context = ""
-                    if rag_embeddings_data:
-                        def get_display_context():
-                            all_relevant_chunks = []
-                            
-                            for col_name, col_value in row_data.items():
-                                if col_value and col_value.strip() and col_value != "null":
-                                    # Split the field value by newlines to get individual lines
-                                    lines = col_value.split('\n')
-                                    
-                                    for line in lines:
-                                        line = line.strip()
-                                        if line:  # Only process non-empty lines
-                                            # Perform semantic similarity search for this line
-                                            relevant_chunks = self.app.tm.rag_processor.find_relevant_chunks(
-                                                line, rag_embeddings_data, top_k=5
-                                            )
-                                            if relevant_chunks:
-                                                all_relevant_chunks.extend(relevant_chunks)
-                            
-                            # Remove duplicates while preserving order
-                            seen = set()
-                            unique_chunks = []
-                            for chunk in all_relevant_chunks:
-                                if chunk not in seen:
-                                    seen.add(chunk)
-                                    unique_chunks.append(chunk)
-                            
-                            return unique_chunks
-                        
-                        # Get display context using per-line search
-                        relevant_chunks = await loop.run_in_executor(
-                            self.executor,
-                            get_display_context
-                        )
-                        
-                        if relevant_chunks:
-                            display_rag_context = "\n\nRelevant context from documents:\n" + "\n".join(relevant_chunks)
-                    
-                    generation_inputs = {
-                        "source_data": json.dumps(row_data, indent=2, ensure_ascii=False),
-                        "task_instructions": defn['instructions'],
-                        "context": display_rag_context,
-                        "example": defn.get('example', '') or ""
-                    }
-                    
-                    # Create temporary signature class for prompt formatting
-                    class ColumnGeneratorSig(dspy.Signature):
-                        """Generate a new column value based on source data and instructions."""
-                        source_data = dspy.InputField(desc="Source column data from the current row")
-                        task_instructions = dspy.InputField(desc="Instructions for generating the new column")
-                        context = dspy.InputField(desc="Additional context from RAG documents")
-                        example = dspy.InputField(desc="Example showing input and expected output for reference", default="")
-                        new_value = dspy.OutputField(desc="The generated value for the new column")
-                    
-                    # Format and display the generation prompt
-                    prompt_text = self.format_dspy_prompt(ColumnGeneratorSig, generation_inputs)
-                    await self.update_prompt_display(prompt_text, f"Generation Prompt (Row {row_idx + 1})")
-                    
-                    # Run generation in thread pool
-                    new_value = await loop.run_in_executor(self.executor, generate_value)
-                    new_values.append(new_value)
-                    
-                    # Increment completed counter after generation is done
-                    completed += 1
-                    
-                    # Force a small yield to allow GUI updates
-                    await asyncio.sleep(0.001)
-                
-                all_new_columns[column_name] = new_values
-            
+            self._worker_done_event = asyncio.Event()
+
+            def _done_callback(result_columns):
+                self._worker_result = result_columns
+                if self._ui_loop:
+                    self._ui_loop.call_soon_threadsafe(self._worker_done_event.set)
+
+            # Arguments packed for the worker thread
+            args = dict(
+                server_host=server_host,
+                headers=headers,
+                df_to_process=df_to_process,
+                source_column_names=source_column_names,
+                rag_embeddings_data=rag_embeddings_data,
+                definitions=definitions,
+                total_operations=total_operations,
+                preview_only=preview_only,
+                done_callback=_done_callback
+            )
+            self.model_thread = threading.Thread(target=self._generation_worker_thread, kwargs=args, daemon=True)
+            self.model_thread.start()
+
+            # Wait for completion without blocking the UI loop
+            await self._worker_done_event.wait()
+
             if self.processing_cancelled:
                 return
-            
-            # Show results
+
             await self.update_progress(100, "Generation complete!")
-            await asyncio.sleep(0.5)  # Brief pause to show completion
-            
+            await asyncio.sleep(0.25)
+
             if preview_only:
-                self.app.show_preview_results_window(df_to_process, all_new_columns, definitions)
+                self.app.show_preview_results_window(df_to_process, self._worker_result or {}, definitions)
             else:
-                await self.save_results(all_new_columns)
-            
+                await self.save_results(self._worker_result or {})
+
         except Exception as e:
-            await self.app.main_window.dialog(
-                toga.ErrorDialog(
-                    title="Error",
-                    message=f"Processing failed: {str(e)}"
-                )
-            )
+            await self.app.main_window.dialog(toga.ErrorDialog(title="Error", message=f"Processing failed: {str(e)}"))
             self.app.show_output_definition_window()
         finally:
-            # Only cleanup if we started the server
             if not self.app.server_was_running:
                 self.app.tm.cleanup()
-            # Shutdown the executor
-            self.executor.shutdown(wait=False)
-    
+            self.io_executor.shutdown(wait=False)
+            # model_thread is daemon; no explicit join on purpose
+
     def get_non_empty_rows(self, df, max_rows=None):
-        """Get rows that have at least one non-empty value in the selected columns."""
         if df is None or df.is_empty() or not self.app.selected_columns:
             return df.head(0) if df is not None else None
-        
-        # Get column names for the selected indices
         column_names = [df.columns[i] for i in self.app.selected_columns if i < len(df.columns)]
         if not column_names:
             return df.head(0)
-        
         non_empty_rows = []
         for i in range(len(df)):
-            has_non_empty = False
+            has_val = False
             for col_name in column_names:
                 try:
-                    value = df[col_name][i]
-                    # Check if value is non-empty (not None, not empty string, not just whitespace)
-                    if value is not None:
-                        str_value = str(value).strip()
-                        if str_value and str_value.lower() not in ['null', 'na', 'n/a', '']:
-                            has_non_empty = True
+                    v = df[col_name][i]
+                    if v is not None:
+                        s = str(v).strip()
+                        if s and s.lower() not in ['null', 'na', 'n/a', '']:
+                            has_val = True
                             break
                 except Exception:
                     continue
-            
-            if has_non_empty:
+            if has_val:
                 non_empty_rows.append(i)
-                # Stop if we've reached the max rows limit
                 if max_rows is not None and len(non_empty_rows) >= max_rows:
                     break
-        
-        # Return the filtered DataFrame with only non-empty rows
-        if non_empty_rows:
-            return df[non_empty_rows]
-        else:
-            return df.head(0)  # Return empty DataFrame with same schema
-    
-    async def calibrate_generation_speed(self, loop):
-        """Do a quick calibration to estimate tokens per second."""
-        try:
-            async def calibrate():
-                logger.debug("Configuring DSPy cache")
-                dspy.configure_cache(
-                    enable_disk_cache=False,
-                    enable_memory_cache=False,
-                    enable_litellm_cache=False
-                )
-                logger.debug("DSPy cache configured")
+        return df[non_empty_rows] if non_empty_rows else df.head(0)
 
-                # Simple signature for calibration
-                class CalibrationSig(dspy.Signature):
-                    """Simple calibration task."""
-                    input = dspy.InputField(desc="Input text")
-                    output = dspy.OutputField(desc="Output text")
-                
-                # Prepare calibration inputs
-                calibration_inputs = {
-                    "input": "Say 'calibration complete' to test the model speed."
-                }
-                
-                # Format and display the calibration prompt
-                prompt_text = self.format_dspy_prompt(CalibrationSig, calibration_inputs)
-                await self.update_prompt_display(prompt_text, "Calibration Prompt")
-                
-                # Give UI time to update before starting generation
-                await asyncio.sleep(0.1)
-                
-                calibrator = dspy.ChainOfThought(CalibrationSig)
-                
-                start_time = time.time()
-                logger.debug("Starting calibration generation")
-                result = calibrator(**calibration_inputs)
-                elapsed = time.time() - start_time
-                logger.debug("Calibration generation completed in %.2f seconds", elapsed)
-                
-                # Try to get token count from the response
-                tokens_used = 0
-                prompt_tokens = 0
-                completion_tokens = 0
-                
-                # Check the configured LM directly
-                if hasattr(dspy.settings, 'lm') and hasattr(dspy.settings.lm, 'history'):
-                    history = dspy.settings.lm.history
-                    if history and len(history) > 0:
-                        last_call = history[-1]
-                        logger.debug("Last call structure: %s", type(last_call))
-                        if hasattr(last_call, 'get'):
-                            logger.debug("Last call keys: %s", last_call.keys() if hasattr(last_call, 'keys') else 'no keys')
-                        
-                        if isinstance(last_call, dict):
-                            # Try different ways to extract usage
-                            usage = None
-                            if 'usage' in last_call:
-                                usage = last_call['usage']
-                            elif 'response' in last_call and isinstance(last_call['response'], dict):
-                                usage = last_call['response'].get('usage', {})
-                            elif hasattr(last_call, 'usage'):
-                                usage = last_call.usage
-                            
-                            if usage:
-                                prompt_tokens = usage.get('prompt_tokens', 0)
-                                completion_tokens = usage.get('completion_tokens', 0)
-                                tokens_used = completion_tokens
-                                logger.debug("Found tokens - prompt: %s, completion: %s", prompt_tokens, completion_tokens)
-                            else:
-                                logger.debug("No usage found in last call")
-                        else:
-                            logger.debug("Last call is not a dict: %s", last_call)
-                
-                # Update totals with calibration tokens
-                if prompt_tokens > 0 or completion_tokens > 0:
-                    self.total_prompt_tokens += prompt_tokens
-                    self.total_completion_tokens += completion_tokens
-                    self.total_tokens = self.total_prompt_tokens + self.total_completion_tokens
-                    logger.debug("Updated totals - total: %s, prompt: %s, completion: %s",
-                               self.total_tokens, self.total_prompt_tokens, self.total_completion_tokens)
-                
-                if tokens_used > 0 and elapsed > 0:
-                    rate = tokens_used / elapsed
-                    logger.debug("Calibration rate: %.1f tokens/sec", rate)
-                    # Add the calibration rate to our token history
-                    self.token_history.append(rate)
-                    return rate
-                else:
-                    # Fallback: estimate based on time (assume ~50 tokens for calibration response)
-                    if elapsed > 0:
-                        # Still update totals with estimated tokens
-                        estimated_tokens = 50
-                        self.total_completion_tokens += estimated_tokens
-                        self.total_tokens = self.total_prompt_tokens + self.total_completion_tokens
-                        logger.debug("Using estimated tokens: %s", estimated_tokens)
-                        rate = estimated_tokens / elapsed
-                        # Add the estimated rate to our token history
-                        self.token_history.append(rate)
-                        return rate
-                    return 0
-            
-            tokens_per_sec = await calibrate()
-            return tokens_per_sec
-            
-        except Exception as e:
-            logger.error("Calibration failed: %s", e)
-            import traceback
-            traceback.print_exc()
-            return 0  # Return 0 if calibration fails
-    
     def calculate_tokens_text(self):
-        """Calculate and format token statistics."""
-        logger.debug("calculate_tokens_text - generation_start_time: %s, total_tokens: %s",
-                   self.generation_start_time, self.total_tokens)
-        
         if self.generation_start_time and self.total_tokens > 0:
-            total_time = time.time() - self.generation_start_time
-            overall_rate = self.total_tokens / total_time if total_time > 0 else 0
-            
-            # Calculate average of recent token rates
             if self.token_history:
-                recent_rate = sum(self.token_history) / len(self.token_history)
+                recent = sum(self.token_history) / len(self.token_history)
             else:
-                recent_rate = 0
-            
-            result = (f"Tokens: {self.total_tokens:,} total "
+                recent = 0
+            return (f"Tokens: {self.total_tokens:,} total "
                     f"({self.total_prompt_tokens:,} prompt, {self.total_completion_tokens:,} completion) | "
-                    f"Speed: {recent_rate:.1f} tokens/sec")
-            logger.debug("calculate_tokens_text result: %s", result)
-            return result
-        else:
-            result = "Tokens: 0 | Speed: -- tokens/sec"
-            logger.debug("calculate_tokens_text fallback result: %s", result)
-            return result
-    
+                    f"Speed: {recent:.1f} tokens/sec")
+        return "Tokens: 0 | Speed: -- tokens/sec"
+
     async def cancel_processing(self, widget):
-        """Cancel the current processing."""
         self.processing_cancelled = True
         await self.update_progress(0, "Cancelling...")
         self.app.tm.cleanup()
         await asyncio.sleep(1)
         self.app.show_output_definition_window()
-    
+
     async def save_results(self, new_columns):
-        """Save the results to file, ensuring preview generations are used at the start."""
-        # Get all non-empty rows from the current DataFrame
         all_non_empty_df = self.get_non_empty_rows(self.app.current_df, None)
-        
-        # Check if we have preview data that should be reused
         preview_rows_count = len(new_columns[list(new_columns.keys())[0]]) if new_columns else 0
-        
         if preview_rows_count > 0 and preview_rows_count < len(all_non_empty_df):
-            # We have preview data - need to generate for remaining rows
             remaining_rows_df = all_non_empty_df[preview_rows_count:]
-            
-            # Generate for remaining rows (this would need to be implemented)
-            # For now, we'll extend with empty values as a placeholder
             for col_name, preview_values in new_columns.items():
                 remaining_count = len(remaining_rows_df)
-                # Extend preview values with empty strings for remaining rows
-                extended_values = preview_values + [""] * remaining_count
-                new_columns[col_name] = extended_values
-        
-        # Reconstruct the full DataFrame with original headers
+                new_columns[col_name] = preview_values + [""] * remaining_count
+
         result_df = self.app.original_df.clone()
-        
-        # Add new columns to the original DataFrame
+
         for col_name, values in new_columns.items():
-            # Pad values to match full DataFrame length
             full_values = []
-            
-            # Add empty values for header rows
             for _ in range(self.app.header_rows):
                 full_values.append("")
-            
-            # Map generated values to their correct positions in the original DataFrame
-            # We need to map from non-empty rows back to original row positions
             non_empty_indices = []
             for i in range(len(self.app.current_df)):
                 has_non_empty = False
@@ -919,42 +374,428 @@ class ProcessingWindow:
                         try:
                             value = self.app.current_df[col_name_check][i]
                             if value is not None:
-                                str_value = str(value).strip()
-                                if str_value and str_value.lower() not in ['null', 'na', 'n/a', '']:
+                                s = str(value).strip()
+                                if s and s.lower() not in ['null', 'na', 'n/a', '']:
                                     has_non_empty = True
                                     break
                         except Exception:
                             continue
                 if has_non_empty:
                     non_empty_indices.append(i)
-            
-            # Create full values array for the working DataFrame
             working_full_values = [""] * len(self.app.current_df)
             for idx, value in enumerate(values):
                 if idx < len(non_empty_indices):
                     working_full_values[non_empty_indices[idx]] = value
-            
-            # Add to the result (after header rows)
             full_values.extend(working_full_values)
-            
-            # Pad if necessary to match original DataFrame length
             if len(full_values) < len(result_df):
                 full_values.extend([""] * (len(result_df) - len(full_values)))
             elif len(full_values) > len(result_df):
                 full_values = full_values[:len(result_df)]
-            
-            # Create a simple column name for the original DataFrame
             new_col_name = f"generated_{len([k for k in new_columns.keys() if k <= col_name])}" if col_name in result_df.columns else col_name
             result_df = result_df.with_columns(pl.Series(name=new_col_name, values=full_values))
-        
-        # Save file
+
         output_path = self.app.table_path.rsplit('.', 1)[0] + '_mutated.' + self.app.table_path.rsplit('.', 1)[1]
         self.app.tm.table_processor.save_table(result_df, output_path)
-        
-        await self.app.main_window.dialog(
-            toga.InfoDialog(
-                title="Success",
-                message=f"Results saved to: {output_path}\n\nPreview generations were used at the start of the file."
-            )
-        )
+        await self.app.main_window.dialog(toga.InfoDialog(title="Success", message=f"Results saved to: {output_path}\n\nPreview generations were used at the start of the file."))
         self.app.main_window.close()
+
+    # -------------------------
+    # Worker thread and helpers
+    # -------------------------
+
+    def _approx_tokens(self, text_len: int) -> int:
+        # Heuristic compatible with llama.cpp tokens; roughly 4 chars per token for English
+        return max(1, text_len // 4)
+
+    def _build_prompt_text(self, row_data, defn, display_rag_context):
+        class _Sig(dspy.Signature):
+            """Generate a new column value based on source data and instructions."""
+            source_data = dspy.InputField(desc="Source column data from the current row")
+            task_instructions = dspy.InputField(desc="Instructions for generating the new column")
+            context = dspy.InputField(desc="Additional context from RAG documents")
+            example = dspy.InputField(desc="Example showing input and expected output for reference", default="")
+            new_value = dspy.OutputField(desc="The generated value for the new column")
+        base = self.format_dspy_prompt(
+            _Sig,
+            {
+                "source_data": json.dumps(row_data, indent=2, ensure_ascii=False),
+                "task_instructions": defn['instructions'],
+                "context": display_rag_context,
+                "example": defn.get('example', '') or ""
+            }
+        )
+        # Enforce strict structured output for downstream parsing
+        contract = (
+            "\nOutput format:\n"
+            '- Return a single JSON object with exactly one key "new_value" whose value is the final answer string.\n'
+            "- Do not include code fences; do not add extra keys; do not prefix with list markers.\n"
+            "- End your reply with the exact marker [[ ## completed ## ]].\n"
+        )
+        return base + "\n" + contract
+
+    def _gather_relevant_chunks(self, row_data, rag_embeddings_data, top_k=5):
+        if not rag_embeddings_data:
+            return []
+        all_chunks = []
+        for _, val in row_data.items():
+            if not val:
+                continue
+            s = str(val).strip()
+            if not s or s == "null":
+                continue
+            for line in s.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                rel = self.app.tm.rag_processor.find_relevant_chunks(line, rag_embeddings_data, top_k=top_k)
+                if rel:
+                    all_chunks.extend(rel)
+        seen = set()
+        uniq = []
+        for c in all_chunks:
+            if c not in seen:
+                seen.add(c)
+                uniq.append(c)
+        return uniq
+
+    def _stream_chat_completion(self, server_host, headers, model, prompt_text, stop, max_tokens):
+        """
+        Synchronous streaming call to the OpenAI‑compatible /v1/chat/completions endpoint.
+        Yields deltas to the UI and returns (full_text, prompt_tokens_est, completion_tokens_est, elapsed_sec).
+        """
+        url = (server_host.rstrip('/')) + '/v1/chat/completions'
+        payload = {
+            "model": model or "openai/local-model",
+            "messages": [{"role": "user", "content": prompt_text}],
+            "temperature": getattr(getattr(dspy, "settings", None), "temperature", None) or 0.7,
+            "max_tokens": max_tokens,
+            "stop": stop or [],
+            "stream": True
+        }
+        req_headers = dict(headers or {})
+        req_headers["Content-Type"] = "application/json"
+        req_headers["Accept"] = "text/event-stream"
+
+        client = get_http_client()
+        start = time.time()
+        full = []
+        usage_prompt = self._approx_tokens(len(prompt_text))
+        usage_completion = 0
+
+        # Stream response using the correct HTTPClient API
+        try:
+            # Use the request method with POST and data parameter
+            resp = client.request(
+                url, method="POST", timeout=30, headers=req_headers, data=json.dumps(payload).encode("utf-8")
+            )
+            
+            # Read the streaming response in chunks
+            buf = b""
+            while True:
+                if self.processing_cancelled:
+                    try:
+                        resp.close()
+                    except Exception:
+                        pass
+                    break
+                
+                try:
+                    chunk = resp.read(2048)
+                    if not chunk:
+                        break
+                except Exception:
+                    break
+                    
+                buf += chunk
+                while b"\n\n" in buf:
+                    frame, buf = buf.split(b"\n\n", 1)
+                    for line in frame.split(b"\n"):
+                        if not line.startswith(b"data:"):
+                            continue
+                        data = line[5:].strip()
+                        if data == b"[DONE]":
+                            break
+                        try:
+                            obj = json.loads(data.decode("utf-8"))
+                        except Exception:
+                            continue
+                        choices = obj.get("choices") or []
+                        if choices:
+                            delta = choices[0].get("delta", {})
+                            txt = delta.get("content")
+                            if txt:
+                                full.append(txt)
+                                usage_completion += self._approx_tokens(len(txt))
+                                # push token to UI
+                                self._post_ui(self.append_live_output(txt))
+                        # If server includes usage in the final streamed object; honor it
+                        usage = obj.get("usage")
+                        if usage:
+                            usage_prompt = usage.get("prompt_tokens", usage_prompt)
+                            usage_completion = usage.get("completion_tokens", usage_completion)
+            try:
+                resp.close()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error("Streaming error: %s", e)
+            raise
+
+        elapsed = max(time.time() - start, 1e-6)
+        return "".join(full), usage_prompt, usage_completion, elapsed
+
+    # -------------------------
+    # Structured output parsing
+    # -------------------------
+    def _strip_markers_and_fences(self, text: str) -> str:
+        if not text:
+            return ""
+        s = text
+        # Remove known stop markers and chatter
+        for marker in ("[[ ## completed ## ]]", "<end_of_turn>"):
+            s = s.replace(marker, "")
+        # Strip common code fences
+        fence_re = re.compile(r"```(?:json|yaml|yml|text)?\s*([\s\S]*?)```", re.IGNORECASE)
+        while True:
+            m = fence_re.search(s)
+            if not m:
+                break
+            s = s[:m.start()] + m.group(1) + s[m.end():]
+        return s.strip()
+
+    def _iter_json_objects(self, s: str):
+        """Yield balanced JSON object substrings from s."""
+        stack = 0
+        start = None
+        in_str = False
+        esc = False
+        for i, ch in enumerate(s):
+            if in_str:
+                if esc:
+                    esc = False
+                elif ch == "\\":
+                    esc = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+                continue
+            if ch == "{":
+                if stack == 0:
+                    start = i
+                stack += 1
+            elif ch == "}":
+                if stack:
+                    stack -= 1
+                    if stack == 0 and start is not None:
+                        yield s[start:i+1]
+                        start = None
+
+    def _try_json_extract_new_value(self, s: str):
+        for obj_str in self._iter_json_objects(s):
+            try:
+                obj = json.loads(obj_str)
+            except Exception:
+                continue
+            if isinstance(obj, dict) and "new_value" in obj:
+                v = obj.get("new_value")
+                if v is None:
+                    return ""
+                return v if isinstance(v, str) else json.dumps(v, ensure_ascii=False)
+        return None
+
+    def _unquote_scalar(self, v: str) -> str:
+        t = v.strip()
+        if not t:
+            return ""
+        if t.startswith('"') and t.endswith('"'):
+            try:
+                return json.loads(t)
+            except Exception:
+                return t[1:-1]
+        if t.startswith("'") and t.endswith("'"):
+            # Convert to JSON‑compatible double quotes naïvely
+            j = '"' + t[1:-1].replace('"', '\\"') + '"'
+            try:
+                return json.loads(j)
+            except Exception:
+                return t[1:-1]
+        return t
+
+    def _parse_yamlish_new_value(self, s: str):
+        # Collect all lines like "- new_value: ...", or "new_value: ..."
+        lines = s.splitlines()
+        hits = []
+        pat = re.compile(r"^\s*(?:-\s*)?new_value\s*:\s*(.*)$", re.IGNORECASE)
+        for ln in lines:
+            m = pat.match(ln)
+            if m:
+                val = self._unquote_scalar(m.group(1))
+                # Unescape visible \n sequences
+                val = val.replace("\\n", "\n")
+                hits.append(val)
+        if hits:
+            # Multiple entries collapse to a newline‑joined single new_value
+            return "\n".join(hits)
+        return None
+
+    def _extract_new_value(self, raw_text: str) -> str:
+        s = self._strip_markers_and_fences(raw_text or "")
+        # 1) Strict JSON object with "new_value"
+        v = self._try_json_extract_new_value(s)
+        if v is not None:
+            return v.strip()
+        # 2) YAML‑ish fallbacks
+        v = self._parse_yamlish_new_value(s)
+        if v is not None:
+            return v.strip()
+        # 3) Last resort; return the body as is
+        return s.strip()
+
+    def _generation_worker_thread(
+        self,
+        *,
+        server_host,
+        headers,
+        df_to_process,
+        source_column_names,
+        rag_embeddings_data,
+        definitions,
+        total_operations,
+        preview_only,
+        done_callback
+    ):
+        """
+        Runs in a single background thread. Streams tokens; posts granular UI updates.
+        """
+        try:
+            all_new_columns = {}
+            completed = 0
+            total_ops = max(1, total_operations)
+            model_name = getattr(getattr(dspy, "settings", None), "lm", None)
+            model_name = getattr(model_name, "model", None) or "openai/local-model"
+            stop_sequences = ["[[ ## completed ## ]]"]
+
+            for def_index, defn in enumerate(definitions):
+                if self.processing_cancelled:
+                    break
+                column_name = " - ".join(defn['headers'])
+                new_values = []
+                def_key = column_name
+                self._post_ui(self.update_progress(
+                    50 + (completed / total_ops) * 50,
+                    f"Generating column: {column_name}", None, self.calculate_tokens_text()
+                ))
+
+                # Precompute input token estimates for this definition for ETA
+                row_input_est = []
+                for row_idx in range(len(df_to_process)):
+                    # Build light row payload only for token estimation
+                    est_row = {}
+                    for col in source_column_names:
+                        try:
+                            v = df_to_process[col][row_idx]
+                            if v is None:
+                                est_row[col] = "null"
+                            elif isinstance(v, bytes):
+                                try:
+                                    est_row[col] = v.decode('utf-8', errors='replace')
+                                except Exception:
+                                    est_row[col] = str(v)
+                            else:
+                                est_row[col] = str(v)
+                        except Exception:
+                            est_row[col] = ""
+                    est_len = len(json.dumps(est_row, ensure_ascii=False))
+                    row_input_est.append(self._approx_tokens(est_len))
+
+                for row_idx in range(len(df_to_process)):
+                    if self.processing_cancelled:
+                        break
+
+                    # Full row payload for generation
+                    row_data = {}
+                    for col in source_column_names:
+                        try:
+                            v = df_to_process[col][row_idx]
+                            if v is None:
+                                row_data[col] = "null"
+                            elif isinstance(v, bytes):
+                                try:
+                                    row_data[col] = v.decode('utf-8', errors='replace')
+                                except Exception:
+                                    row_data[col] = str(v)
+                            else:
+                                row_data[col] = str(v)
+                        except Exception:
+                            row_data[col] = ""
+
+                    # RAG display context for prompt view
+                    display_chunks = self._gather_relevant_chunks(row_data, rag_embeddings_data, top_k=5)
+                    display_rag_context = "\n\nRelevant context from documents:\n" + "\n".join(display_chunks) if display_chunks else ""
+
+                    prompt_text = self._build_prompt_text(row_data, defn, display_rag_context)
+                    self._post_ui(self.update_prompt_display(prompt_text, f"Generation Prompt (Row {row_idx + 1})"))
+                    self._post_ui(self.reset_live_output(f" (Row {row_idx + 1})"))
+
+                    # Dynamic output limit based on prompt and RAG size
+                    dyn_max = self.app.tm.column_generator.calculate_dynamic_max_tokens(
+                        len(json.dumps(row_data, ensure_ascii=False)), len(display_rag_context)
+                    )
+
+                    # Stream completion
+                    try:
+                        text, pt, ct, dt = self._stream_chat_completion(
+                            server_host, headers, model_name, prompt_text, stop_sequences, dyn_max
+                        )
+                    except Exception as e:
+                        text = f"Error: {str(e)[:200]}"
+                        pt = self._approx_tokens(len(prompt_text))
+                        ct = self._approx_tokens(len(text))
+                        dt = 0.01
+
+                    # Track usage and speed
+                    self.total_prompt_tokens += pt
+                    self.total_completion_tokens += ct
+                    self.total_tokens = self.total_prompt_tokens + self.total_completion_tokens
+                    if ct > 0 and dt > 0:
+                        self.token_history.append(ct / dt)
+
+                    # Parse DSPy‑style structured output; keep only the new_value string
+                    parsed_value = self._extract_new_value(text)
+                    new_values.append(parsed_value)
+                    completed += 1
+
+                    # After the first completed row in a definition; derive ETA parameters
+                    if def_key not in self._eta_ratio_by_def:
+                        ipt_est = max(1, row_input_est[row_idx])
+                        ratio = ct / float(ipt_est)
+                        tps = max(1e-6, ct / dt)
+                        self._eta_ratio_by_def[def_key] = max(0.2, min(8.0, ratio))  # clamp to sane range
+                        self._eta_tps_by_def[def_key] = tps
+
+                    # Compute remaining ETA using first‑row metrics
+                    remain_rows = len(df_to_process) - (row_idx + 1)
+                    if remain_rows > 0:
+                        ratio = self._eta_ratio_by_def.get(def_key, 1.0)
+                        tps = self._eta_tps_by_def.get(def_key, sum(self.token_history) / max(1, len(self.token_history)) or 1.0)
+                        # Sum predicted completion tokens for remaining rows in current definition
+                        pred_ct = 0
+                        base_idx = row_idx + 1
+                        for k in range(base_idx, len(row_input_est)):
+                            pred_ct += ratio * max(1, row_input_est[k])
+                        eta_sec = int(pred_ct / max(1e-6, tps))
+                        time_text = f"Remaining: ~{timedelta(seconds=eta_sec)}"
+                    else:
+                        time_text = "Remaining: ~0:00"
+
+                    progress = 50 + (completed / total_ops) * 50
+                    self._post_ui(self.update_progress(progress, f"Generating column: {column_name} (row {row_idx + 1}/{len(df_to_process)})", time_text, self.calculate_tokens_text()))
+
+                all_new_columns[column_name] = new_values
+
+            done_callback(all_new_columns)
+        except Exception as e:
+            logger.error("Worker failure: %s", e)
+            done_callback({})
