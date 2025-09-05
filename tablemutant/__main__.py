@@ -3,9 +3,60 @@
 TableMutant Main Entry Point - Checks for CLI args and launches GUI if none provided
 """
 
-import argparse
-import sys
 import os
+import sys
+import platform
+import multiprocessing as mp
+
+def _configure_mp_for_briefcase():
+    """Configure multiprocessing for Briefcase-bundled apps to prevent GUI respawning."""
+    # Make frozen bundles cooperate with multiprocessing
+    try:
+        mp.freeze_support()
+    except Exception:
+        pass
+
+    if platform.system() == "Darwin":
+        # 1) Prefer 'fork' to avoid re-exec of the GUI stub
+        try:
+            # Only set if not set yet; prevents RuntimeError if already set
+            if mp.get_start_method(allow_none=True) is None:
+                mp.set_start_method("fork")
+        except Exception:
+            # If 'fork' is not viable, fall back to spawn but make it headless
+            pass
+
+        # 2) If we end up on 'spawn' anyway, make sure the spawned interpreter
+        # is *not* the GUI stub, to avoid a second app window.
+        try:
+            if mp.get_start_method() == "spawn":
+                # Use the framework interpreter embedded by Briefcase if present;
+                # else fall back to a system python.
+                candidates = [
+                    os.path.join(sys.prefix, "bin", "python3"),
+                    "/usr/bin/python3"
+                ]
+                for cand in candidates:
+                    if os.path.exists(cand):
+                        mp.set_executable(cand)
+                        break
+        except Exception:
+            pass
+
+    # 3) Nudge common libs away from process-based parallelism
+    os.environ.setdefault("JOBLIB_START_METHOD", "threading")
+    os.environ.setdefault("JOBLIB_MULTIPROCESSING", "0")
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")  # HF tokenizers
+    # Optional; tame oversubscription while you're here
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+    os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
+# Configure multiprocessing before any other imports
+_configure_mp_for_briefcase()
+
+import argparse
 import logging
 
 # Add the current directory to path for imports
@@ -81,6 +132,14 @@ Examples:
     if args.gui or not (args.model and args.table and args.instructions):
         # Launch GUI
         try:
+            # If this is a multiprocessing child, do not construct a GUI app
+            try:
+                if mp.current_process().name != "MainProcess":
+                    return None
+            except Exception:
+                # Be conservative
+                return None
+            
             import toga
             from tablemutant.ui import TableMutantGUI
             

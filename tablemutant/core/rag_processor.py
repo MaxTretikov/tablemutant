@@ -4,6 +4,11 @@ RAGProcessor - Handles RAG functionality for PDF loading, text extraction, and e
 """
 
 import os
+# Prevent multiprocessing issues in Briefcase-bundled apps
+os.environ.setdefault("JOBLIB_MULTIPROCESSING", "0")
+os.environ.setdefault("JOBLIB_START_METHOD", "threading")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
 import re
 import logging
 from typing import List, Optional, Tuple, Dict
@@ -14,7 +19,6 @@ from .embedding_cache import EmbeddingCache
 
 # Get logger for this module
 logger = logging.getLogger('tablemutant.core.rag_processor')
-
 
 class RAGProcessor:
     def __init__(self):
