@@ -43,17 +43,17 @@ class RAGProcessor:
     def _load_pdf(self, pdf_path: str) -> Optional[str]:
         """Load and extract text from PDF."""
         try:
-            import PyPDF2
+            import pypdf
             
             with open(pdf_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = pypdf.PdfReader(file)
                 text = ""
                 for page in pdf_reader.pages:
                     text += page.extract_text() + "\n"
                 
                 return text.strip()
         except ImportError:
-            logger.error("PyPDF2 not installed. Install with: pip install PyPDF2")
+            logger.error("pypdf not installed. Install with: pip install pypdf")
             return None
             
     def _load_text_file(self, file_path: str) -> Optional[str]:
